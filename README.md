@@ -4,6 +4,8 @@ Una lotería mexicana en tiempo real para miles de personas a la vez, a pura lle
 
 ## Estado
 
+El plan completo, con historias de usuario y tareas, está en [docs/plan-de-implementacion.md](docs/plan-de-implementacion.md).
+
 - [x] Especificación técnica y arquitectura en Cloudflare
 - [x] Dirección visual: grabado de feria a cuatro tintas
 - [x] MVP local: sala en Durable Object, cliente web, frijoles, baraja verificable, bots
