@@ -15,6 +15,7 @@
     "ESPERA_MS": "10000",
     "CARTA_MS": "6000",
     "FIN_MS": "12000",
+    "GRACIA_MS": "10000",
     "CUPO": "5000",
     "CUOTA_DIARIA": "100000",
     "UMBRAL_CUOTA": "0.9"

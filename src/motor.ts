@@ -54,6 +54,8 @@ export interface Config {
   cartaMs: number;
   finMs: number;
   catalogo: number;
+  /** Tiempo para gritar después de la última carta, antes de cerrar la ronda. A pura llena casi todos llenan al final. */
+  graciaMs?: number;
   /** Conexiones simultáneas máximas en la sala. */
   cupo?: number;
   /** Solicitudes diarias del plan gratuito de Durable Objects. */
@@ -106,7 +108,7 @@ export class Motor {
 
   constructor(env: Entorno, cfg: Config) {
     this.env = env;
-    this.cfg = { cupo: 5000, cuotaDiaria: 100_000, umbralCuota: 0.9, ...cfg };
+    this.cfg = { cupo: 5000, cuotaDiaria: 100_000, umbralCuota: 0.9, graciaMs: 10000, ...cfg };
   }
 
   private baraja(semilla: string): number[] {
@@ -165,8 +167,9 @@ export class Motor {
     if (!e) return 0;
     const resta = Math.max(0, e.siguienteEn - this.env.ahora());
     const { catalogo, cartaMs, finMs } = this.cfg;
-    if (e.fase === FASE.ESPERA) return resta + catalogo * cartaMs + finMs;
-    if (e.fase === FASE.CANTANDO) return resta + (catalogo - e.cantadas) * cartaMs + finMs;
+    const gracia = this.graciaMs() - cartaMs;
+    if (e.fase === FASE.ESPERA) return resta + catalogo * cartaMs + gracia + finMs;
+    if (e.fase === FASE.CANTANDO) return resta + (catalogo - e.cantadas) * cartaMs + gracia + finMs;
     return resta;
   }
 
@@ -278,14 +281,20 @@ export class Motor {
     }
   }
 
+  /** Después de la última carta la ronda espera al menos esto antes de cerrar. */
+  private graciaMs(): number {
+    return Math.max(this.cfg.cartaMs, this.cfg.graciaMs);
+  }
+
   private async cantar(e: EstadoSala): Promise<void> {
     e.cantadas += 1;
     const carta = this.baraja(e.semilla)[e.cantadas - 1];
-    e.siguienteEn = this.env.ahora() + this.cfg.cartaMs;
+    const espera = e.cantadas >= this.cfg.catalogo ? this.graciaMs() : this.cfg.cartaMs;
+    e.siguienteEn = this.env.ahora() + espera;
     await this.env.escribir(CLAVE_ESTADO, e);
-    await this.env.programarAlarma(this.cfg.cartaMs);
+    await this.env.programarAlarma(espera);
     const conexiones = this.env.conexiones();
-    this.difundir(conexiones, codificarCarta(e.ronda, e.cantadas, carta, this.cfg.cartaMs));
+    this.difundir(conexiones, codificarCarta(e.ronda, e.cantadas, carta, espera));
     this.difundir(conexiones, codificarStats(conexiones.length, e.ganadores));
   }
 

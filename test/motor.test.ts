@@ -142,3 +142,31 @@ test('pura llena: con 54 cartas nadie gana hasta que salen sus 16', async () => 
   }
   assert.ok(reclamosFallidos >= 15, 'hacen falta al menos 16 cartas para llenar');
 });
+
+test('después de la última carta hay tiempo de gracia para gritar', async () => {
+  const programadas: number[] = [];
+  const almacen = new Map<string, unknown>();
+  let alarma = false;
+  const conexion = new ConexionFalsa();
+  const motor = new Motor({
+    conexiones: () => [conexion],
+    programarAlarma: async (ms) => { programadas.push(ms); alarma = true; },
+    hayAlarma: async () => alarma,
+    leer: async (k) => structuredClone(almacen.get(k)) as any,
+    escribir: async (k, v) => { almacen.set(k, structuredClone(v)); },
+    borrarPrefijo: async () => {},
+    ahora: () => 0,
+    aleatorio: (n) => new Uint8Array(n).fill(3),
+  }, { esperaMs: 1000, cartaMs: 1000, finMs: 1000, catalogo: 16, graciaMs: 9000 });
+  await motor.conectar(conexion, TOKEN_A);
+  for (let i = 0; i < 16; i++) await motor.alarma();
+  const cartas = conexion.recibidos.filter((m) => m.tipo === T.CARTA);
+  assert.equal(cartas.length, 16);
+  assert.equal(programadas[programadas.length - 1], 9000, 'la última carta deja 9 s');
+  assert.equal(cartas[15].msSiguiente, 9000);
+  assert.equal(cartas[14].msSiguiente, 1000);
+  const ronda = conexion.ultimo(T.ESTADO).ronda;
+  const tabla = conexion.ultimo(T.ESTADO).tabla;
+  await motor.mensaje(conexion, codificarLoteria(ronda, mascaraCantadas(tabla, cartas.map((c) => c.carta))));
+  assert.equal(conexion.ultimo(T.RESULTADO).ok, true, 'todavía se puede ganar durante la gracia');
+});

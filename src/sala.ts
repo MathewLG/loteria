@@ -10,6 +10,7 @@ export interface Env {
   ESPERA_MS?: string;
   CARTA_MS?: string;
   FIN_MS?: string;
+  GRACIA_MS?: string;
   CUPO?: string;
   CUOTA_DIARIA?: string;
   UMBRAL_CUOTA?: string;
@@ -28,6 +29,7 @@ function config(env: Env): Config {
     esperaMs: numero(env.ESPERA_MS, 10000),
     cartaMs: numero(env.CARTA_MS, 6000),
     finMs: numero(env.FIN_MS, 12000),
+    graciaMs: numero(env.GRACIA_MS, 10000),
     catalogo: CATALOGO,
     cupo: numero(env.CUPO, 5000),
     cuotaDiaria: numero(env.CUOTA_DIARIA, 100_000),

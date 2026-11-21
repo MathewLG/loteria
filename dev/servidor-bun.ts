@@ -52,6 +52,7 @@ const motor = new Motor(
     esperaMs: Number(process.env.ESPERA_MS ?? 10000),
     cartaMs: Number(process.env.CARTA_MS ?? 6000),
     finMs: Number(process.env.FIN_MS ?? 12000),
+    graciaMs: Number(process.env.GRACIA_MS ?? 10000),
     catalogo: 54,
     cupo: Number(process.env.CUPO ?? 5000),
     cuotaDiaria: Number(process.env.CUOTA_DIARIA ?? 100_000),
