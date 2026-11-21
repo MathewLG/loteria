@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#E9DCBC">
+<title>Verificar una ronda · Lotería</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<link rel="stylesheet" href="/css/estilos.css">
+<script type="module" src="/js/verificar.js"></script>
+</head>
+<body>
+<main class="pagina">
+  <h1>Verificar una ronda</h1>
+  <p>Antes de cantar, la sala publica una huella de la semilla que revuelve la baraja. Al terminar revela la semilla. Esta página repite el cálculo en tu navegador: si alguien hubiera cambiado el orden de las cartas, no coincidiría.</p>
+  <form id="formulario">
+    <label>Ronda
+      <input id="clave" name="clave" autocomplete="off" spellcheck="false" placeholder="2026-11-21/12-ab12cd34">
+      <span class="ayuda">Déjalo vacío para revisar la última ronda terminada.</span>
+    </label>
+    <button class="boton-principal" type="submit">Verificar</button>
+  </form>
+  <div id="salida" aria-live="polite"></div>
+  <p><a href="/">Volver al juego</a></p>
+</main>
+</body>
+</html>

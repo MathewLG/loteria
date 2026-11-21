@@ -12,47 +12,73 @@
 <script type="module" src="/js/app.js"></script>
 </head>
 <body>
-<main class="juego">
+<div class="aviso-conexion" id="aviso-conexion" role="status" hidden>
+  <span id="aviso-texto"></span>
+  <button class="boton-sec" id="boton-reintentar" type="button">Reintentar ahora</button>
+</div>
+
+<main class="juego" id="juego">
   <header class="barra">
     <h1 class="marca">Lotería</h1>
-    <p class="sala-info" id="info-sala">Conectando…</p>
+    <button class="boton-sec boton-historial" id="boton-historial" type="button" aria-haspopup="dialog" aria-controls="historial">
+      Cartas cantadas: <span id="contador-cantadas">0</span>
+    </button>
   </header>
-
-  <div class="aviso-conexion" id="aviso-conexion" role="status" hidden>
-    <span id="aviso-texto"></span>
-    <button class="boton-sec" id="boton-reintentar" type="button">Reintentar ahora</button>
-  </div>
 
   <section class="cantor" aria-label="Carta cantada">
     <div class="cantor-carta" id="cantor-carta"></div>
     <div class="cantor-texto">
-      <p class="cantor-etiqueta" id="cantor-etiqueta"></p>
+      <p class="cantor-etiqueta" id="cantor-etiqueta">Conectando con la sala…</p>
       <p class="cantor-nombre" id="cantor-nombre"></p>
+      <p class="cantor-verso" id="cantor-verso"></p>
       <div class="barra-tiempo" aria-hidden="true"><span id="barra-tiempo"></span></div>
-      <p class="cantor-figura" id="cantor-figura" hidden>
-        <b>Pura llena.</b> <span id="conteo-frijoles"></span>
+      <p class="sala-info" id="info-sala"></p>
+      <p class="apodo" id="apodo-linea">
+        Juegas como <b id="apodo"></b>
+        <button class="boton-enlace" id="boton-apodo" type="button">Cambiar apodo</button>
       </p>
     </div>
   </section>
 
   <p class="solo-lector" id="anuncio" aria-live="polite"></p>
 
-  <section class="tabla-zona" aria-label="Tu tabla">
+  <section class="tabla-zona" id="tabla-zona" aria-label="Tu tabla">
     <div class="tabla-cargando" id="tabla-cargando">Conectando con la sala…</div>
+
+    <div class="eleccion" id="eleccion" hidden>
+      <p class="eleccion-titulo" id="eleccion-titulo">Elige tu tabla para esta ronda</p>
+      <div class="eleccion-opciones" id="eleccion-opciones" role="radiogroup" aria-labelledby="eleccion-titulo"></div>
+    </div>
+
+    <div class="espectador" id="espectador" hidden>
+      <h2>Llegaste con la ronda empezada</h2>
+      <p>Mira cómo se canta esta ronda. Tu tabla llega al empezar la siguiente.</p>
+      <p class="espectador-cuenta" id="espectador-cuenta"></p>
+    </div>
+
     <div class="tabla" id="tabla" role="group" aria-label="Tu tabla: toca una carta que ya salió para ponerle un frijol" hidden></div>
   </section>
 
   <div class="pie" id="pie">
     <p class="mensaje" id="mensaje" aria-live="polite"></p>
-    <button class="boton-grito" id="boton-loteria" type="button">¡Lotería!</button>
+    <button class="boton-grito" id="boton-loteria" type="button" disabled>Conectando…</button>
   </div>
 
   <section class="fin" id="panel-fin" aria-live="polite" hidden>
     <h2 id="fin-titulo"></h2>
     <p id="fin-resultado" class="fin-resultado"></p>
     <div class="verificacion" id="fin-verificacion"></div>
-    <p class="fin-siguiente" id="fin-siguiente"></p>
+    <p class="fin-siguiente"><span id="fin-siguiente"></span> <a id="fin-enlace" href="/verificar.html">Verificar esta ronda</a></p>
   </section>
 </main>
+
+<dialog class="historial" id="historial" aria-labelledby="historial-titulo">
+  <div class="historial-cabeza">
+    <h2 id="historial-titulo">Cartas cantadas</h2>
+    <button class="boton-sec" id="historial-cerrar" type="button">Cerrar</button>
+  </div>
+  <p class="historial-vacio" id="historial-vacio">Todavía no sale ninguna carta en esta ronda.</p>
+  <ol class="historial-lista" id="historial-lista" reversed></ol>
+</dialog>
 </body>
 </html>
