@@ -17,6 +17,6 @@ test('la variante compacta agranda nombre y número', () => {
 });
 
 test('cada carta pintada tiene su propio recorte, aunque se repita en la página', () => {
-  const ids = [svgCarta(1), svgCarta(1)].map((s) => s.match(/clipPath id="([^"]+)"/)[1]);
+  const ids = [svgCarta(1), svgCarta(1)].map((s) => (s.match(/clipPath id="([^"]+)"/) ?? [])[1]);
   assert.notEqual(ids[0], ids[1]);
 });
