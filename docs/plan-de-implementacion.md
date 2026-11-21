@@ -81,9 +81,9 @@ Criterios de aceptación:
 - Con 5,000 clientes: carta a todos en < 500 ms p95 y < 1 s p99; respuesta a reclamos < 1 s p95.
 
 Tareas:
-- [ ] T-02.1 Generador de carga escalable a partir de `scripts/bots.mjs`, con métricas y salida en JSON (M)
+- [x] T-02.1 Generador de carga escalable a partir de `scripts/bots.mjs`, con métricas y salida en JSON (M)
 - [ ] T-02.2 Marca de tiempo del servidor en CARTA para medir latencia de punta a punta sin romper el formato de 6 bytes (S)
-- [ ] T-02.3 Escenarios: entrada masiva en 30 s, reconexión del 50%, sala al 100% de cupo (M)
+- [x] T-02.3 Escenarios: entrada masiva en 30 s, reconexión del 50%, sala al 100% de cupo (M)
 - [ ] T-02.4 Correr en local y en el despliegue; documentar resultados en `docs/pruebas-de-carga.md` (M)
 
 ### HU-03 · Sala en producción
