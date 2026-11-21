@@ -41,6 +41,14 @@ npm run bots -- 30
 
 Conecta 30 jugadores simulados que marcan con distintos reflejos y gritan "¡Lotería!" cuando llenan su tabla.
 
+### Prueba de carga
+
+```bash
+npm run carga -- 5000 --escenario=entrada
+```
+
+Simula miles de jugadores y mide latencia, reclamos y cuota. Detalles y resultados en [docs/pruebas-de-carga.md](docs/pruebas-de-carga.md).
+
 ### Probar en tu teléfono
 
 ```bash
