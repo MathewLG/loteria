@@ -2,7 +2,7 @@
 // Uso: npm run bots -- 50          (50 bots contra http://localhost:8787)
 //      SALA=ws://192.168.1.20:8787/ws npm run bots -- 200
 
-import { FASE, T, codificarLoteria, cumpleFigura, decodificar, mascaraCantadas } from '../public/js/protocolo.js';
+import { FASE, T, codificarElijo, codificarLoteria, cumpleFigura, decodificar, mascaraCantadas } from '../public/js/protocolo.js';
 import { aHex } from '../public/js/baraja.js';
 
 const N = Number.parseInt(process.argv[2] ?? '20', 10);
@@ -14,27 +14,36 @@ function crearBot(numero) {
   // Cada bot tiene su ritmo: unos marcan rápido, otros se distraen.
   const reflejos = azar(300, 2200);
   const distraido = Math.random() < 0.15;
-  let b = { ronda: 0, fase: FASE.ESPERA, figura: 0, tabla: [], cantadas: [], marcadas: 0, gritando: false, gano: false };
+  let b = { ronda: 0, fase: FASE.ESPERA, figura: 0, tablas: [], tabla: [], cantadas: [], marcadas: 0, gritando: false, gano: false, espectador: false };
   let ws;
 
   const revisar = () => {
-    if (b.gano || b.gritando || b.fase !== FASE.CANTANDO) return;
+    if (b.gano || b.gritando || b.espectador || b.fase !== FASE.CANTANDO) return;
     if (!cumpleFigura(b.marcadas, b.figura)) return;
     b.gritando = true;
     setTimeout(() => ws.readyState === WebSocket.OPEN && ws.send(codificarLoteria(b.ronda, b.marcadas)), azar(200, 1500));
   };
 
   const conectar = () => {
-    ws = new WebSocket(`${URL_SALA}?t=${token}`);
+    // `r` le dice a la sala qué ronda estaba jugando el bot, para no quedar de espectador al reconectar.
+    ws = new WebSocket(`${URL_SALA}?t=${token}${b.ronda ? `&r=${b.ronda}` : ''}`);
     ws.binaryType = 'arraybuffer';
     ws.addEventListener('message', (evento) => {
       const m = decodificar(evento.data);
       if (!m) return;
       if (m.tipo === T.ESTADO) {
         b = {
-          ronda: m.ronda, fase: m.fase, figura: m.figura, tabla: m.tabla, cantadas: m.cantadas,
-          marcadas: mascaraCantadas(m.tabla, m.cantadas), gritando: false, gano: m.lugar > 0,
+          ronda: m.ronda, fase: m.fase, figura: m.figura, tablas: m.tablas, tabla: m.tabla, cantadas: m.cantadas,
+          marcadas: mascaraCantadas(m.tabla, m.cantadas), gritando: false, gano: m.lugar > 0, espectador: m.espectador,
         };
+        // En la espera, cada bot escoge una de las tres tablas al azar.
+        if (m.fase === FASE.ESPERA && m.tablas.length === 3) {
+          const indice = Math.floor(Math.random() * 3);
+          setTimeout(() => ws.readyState === WebSocket.OPEN && ws.send(codificarElijo(b.ronda, indice)), azar(100, 1000));
+        }
+      } else if (m.tipo === T.ELECCION && m.ok) {
+        b.tabla = b.tablas[m.indice] ?? b.tabla;
+        b.marcadas = mascaraCantadas(b.tabla, b.cantadas);
       } else if (m.tipo === T.CARTA && m.ronda === b.ronda) {
         b.fase = FASE.CANTANDO;
         b.cantadas.push(m.carta);

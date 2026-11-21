@@ -7,11 +7,16 @@
   "durable_objects": {
     "bindings": [{ "name": "SALA", "class_name": "Sala" }]
   },
+  // Registro de cada ronda para verificarla después (R2 tiene 10 GB gratis).
+  "r2_buckets": [{ "binding": "RONDAS", "bucket_name": "loteria-rondas" }],
   // El plan gratuito solo admite Durable Objects con almacenamiento SQLite.
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Sala"] }],
   "vars": {
     "ESPERA_MS": "10000",
     "CARTA_MS": "6000",
-    "FIN_MS": "12000"
+    "FIN_MS": "12000",
+    "CUPO": "5000",
+    "CUOTA_DIARIA": "100000",
+    "UMBRAL_CUOTA": "0.9"
   }
 }

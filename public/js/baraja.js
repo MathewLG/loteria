@@ -124,9 +124,20 @@ export function barajar(semilla, n) {
 
 const codificador = new TextEncoder();
 
-/** La tabla de un jugador sale de su token y la ronda: no hay que guardarla en ningún lado. */
-export function tablaDe(token, ronda, catalogo) {
-  return barajar(sha256(codificador.encode(`tabla:${token}:${ronda}`)), catalogo).slice(0, 16);
+/** Cuántas tablas se ofrecen a cada jugador en la espera. */
+export const TABLAS_OFRECIDAS = 3;
+
+/**
+ * La tabla de un jugador sale de su token, la ronda y cuál de las tablas ofrecidas eligió
+ * (0, 1 o 2): no hay que guardarla en ningún lado.
+ */
+export function tablaDe(token, ronda, catalogo, indice = 0) {
+  return barajar(sha256(codificador.encode(`tabla:${token}:${ronda}:${indice}`)), catalogo).slice(0, 16);
+}
+
+/** Las tablas que se ofrecen a un jugador en la espera, en orden de índice. */
+export function tablasOfrecidas(token, ronda, catalogo) {
+  return Array.from({ length: TABLAS_OFRECIDAS }, (_, i) => tablaDe(token, ronda, catalogo, i));
 }
 
 export function aHex(bytes) {
