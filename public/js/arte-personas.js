@@ -13,12 +13,13 @@ const disco = (api, relleno) => {
 
 export const PERSONAS = {
   // 2 · El Diablito
-  2: grabado(({ forma, linea, tinta, tapa, trazo }) => {
-    trazo('M58 234 L150 66', T.cempa, 6);
-    linea('M56 232 L148 64 M62 236 L154 68', 2.5);
-    trazo('M136 56 L164 76 M136 56 L144 38 M164 76 L172 58 M150 66 L158 46', T.cempa, 6);
-    linea('M136 56 L164 76 M136 56 L144 38 M164 76 L172 58 M150 66 L158 46', 4);
-    tapa('M50 238 C52 202 72 188 100 186 C128 188 148 202 150 238 Z', T.grana);
+  2: grabado(({ forma, linea, tinta, tapa, trazo, hueso }) => {
+    // El tridente va detrás del hombro: el torso lo tapa.
+    hueso('M150 238 L164 70', 9, T.cempa);
+    trazo('M148 62 L180 62 M148 62 L148 42 M164 66 L164 36 M180 62 L180 42', T.cempa, 6);
+    linea('M148 62 L180 62 M148 62 L148 42 M164 66 L164 36 M180 62 L180 42', 4);
+    tapa('M50 238 C52 202 72 188 100 186 C128 188 148 202 150 238 Z', T.anil);
+    linea('M76 204 L88 238 M124 204 L112 238', 2.5);
     forma('M72 124 L56 112 L72 138 Z M128 124 L144 112 L128 138 Z', T.grana);
     tapa('M72 128 C72 100 84 88 100 88 C116 88 128 100 128 128 C128 156 116 174 100 176 C84 174 72 156 72 128 Z', T.grana);
     forma('M80 102 C66 90 64 72 70 58 C74 76 84 86 92 92 Z', T.cempa);
@@ -28,7 +29,6 @@ export const PERSONAS = {
     tinta(elipse(111, 130, 4, 5));
     forma('M82 150 C90 164 110 164 118 150 C110 155 90 155 82 150 Z', T.hueso);
     tinta('M93 174 L100 194 L107 174 Z');
-    linea('M64 206 L72 214 M128 210 L136 202', 3);
   }),
 
   // 3 · La Dama
@@ -83,21 +83,21 @@ export const PERSONAS = {
     forma(elipse(93, 152, 7, 6), T.cempa);
     forma(elipse(107, 152, 7, 6), T.cempa);
     forma(elipse(100, 112, 15, 18), T.pielMorena);
-    tinta('M84 112 C80 90 94 80 104 82 C120 84 124 100 116 116 C116 106 108 98 98 98 C90 100 86 106 84 112 Z');
-    tinta('M84 110 C78 130 76 150 70 170 C80 156 86 140 88 124 Z');
-    tinta('M116 110 C124 128 128 150 132 166 C122 154 116 138 113 124 Z');
+    // Pelo peinado hacia un solo lado, cae sobre el hombro derecho.
+    tinta('M85 110 C82 90 94 80 104 82 C120 84 126 100 120 118 C128 138 132 160 134 186 C124 172 118 152 114 134 L114 118 C114 104 106 97 98 98 C90 99 86 104 85 110 Z');
     linea('M92 112 C94 110 97 110 98 112 M103 112 C104 110 107 110 109 112', 2.5);
     linea('M96 122 C98 124 102 124 104 122', 2.5);
   }),
 
   // 12 · El Valiente
-  12: grabado(({ forma, linea, tinta, tapa, trazo }) => {
+  12: grabado(({ forma, linea, tinta, tapa, trazo, color }) => {
+    disco({ color, linea }, T.anil);
     forma(HOMBROS, T.grana);
     trazo('M52 214 L148 214 M48 226 L152 226', T.anil, 5);
     trazo('M56 204 L144 204', T.cempa, 4);
     forma(CUELLO, T.pielMorena);
     forma(CARA, T.pielMorena);
-    forma('M80 94 C80 70 88 56 100 56 C112 56 120 70 120 94 Z', T.cempa);
+    tapa('M80 94 C80 70 88 56 100 56 C112 56 120 70 120 94 Z', T.cempa);
     tapa('M48 98 C60 84 140 84 152 98 C140 110 60 110 48 98 Z', T.cempa);
     linea('M82 88 C94 92 106 92 118 88', 3);
     linea('M84 116 L95 120 M116 116 L105 120');
@@ -114,15 +114,15 @@ export const PERSONAS = {
   14: grabado(({ forma, linea, tinta, hueso }) => {
     hueso('M142 48 L120 234', 9, T.cempa);
     forma('M142 48 C122 36 90 38 66 54 C90 50 116 54 136 64 Z', T.hueso);
-    hueso('M96 98 L96 160', 9);
-    hueso('M82 112 C90 108 102 108 110 112', 7);
-    hueso('M80 123 C90 119 102 119 112 123', 7);
-    hueso('M82 134 C90 130 102 130 110 134', 7);
-    hueso('M84 106 L70 136 L82 160', 8);
-    hueso('M108 106 L124 120 L134 112', 8);
+    hueso('M96 98 L96 160', 11);
+    hueso('M82 112 C90 108 102 108 110 112', 9);
+    hueso('M80 123 C90 119 102 119 112 123', 9);
+    hueso('M82 134 C90 130 102 130 110 134', 9);
+    hueso('M84 106 L70 136 L82 160', 10);
+    hueso('M108 106 L124 120 L134 112', 10);
     forma('M84 158 C88 168 104 168 108 158 L104 172 L88 172 Z', T.hueso);
-    hueso('M90 172 L82 202 L74 230', 8);
-    hueso('M102 172 L112 202 L106 230', 8);
+    hueso('M90 172 L82 202 L74 230', 10);
+    hueso('M102 172 L112 202 L106 230', 10);
     linea('M66 232 L78 232 M104 232 L116 232', 4);
     forma(circ(96, 82, 16), T.hueso);
     tinta(elipse(90, 82, 4, 5));
@@ -144,7 +144,8 @@ export const PERSONAS = {
   }),
 
   // 25 · El Borracho
-  25: grabado(({ forma, linea, tinta, tapa }) => {
+  25: grabado(({ forma, linea, tinta, tapa, color }) => {
+    disco({ color, linea }, T.nopal);
     forma(HOMBROS, T.hueso);
     forma('M60 214 L76 210 L78 226 L62 230 Z', T.anil);
     forma(CUELLO, T.pielClara);
@@ -153,8 +154,8 @@ export const PERSONAS = {
     linea('M84 124 L95 126 M105 126 L116 124', 3);
     tinta('M86 128 C89 131 93 131 95 128 Z M105 128 C107 131 111 131 114 128 Z');
     linea('M88 152 C94 156 100 150 106 154 C108 156 110 156 112 154', 2.5);
-    forma('M84 102 C82 82 92 72 104 72 C116 72 124 82 124 96 Z', T.cempa);
-    tapa('M64 106 C80 94 126 88 142 96 C132 106 84 112 64 106 Z', T.cempa);
+    tapa('M82 112 C80 92 90 82 102 82 C114 82 122 92 122 106 Z', T.cempa);
+    tapa('M62 116 C78 104 124 98 140 106 C130 116 82 122 62 116 Z', T.cempa);
     forma('M138 136 L144 134 L148 146 L136 150 Z', T.nopal);
     forma('M134 150 L148 146 L160 186 L146 190 Z', T.nopal);
     forma(circ(146, 192, 9), T.pielClara);
@@ -174,41 +175,45 @@ export const PERSONAS = {
     forma(elipse(124, 124, 4, 8), T.pielOscura);
     forma(CARA, T.pielOscura);
     tinta('M76 114 C73 92 85 80 100 80 C115 80 127 92 124 114 C120 101 111 96 100 96 C89 96 80 101 76 114 Z');
-    claro('M86 90 q3 -3 6 0 M98 86 q3 -3 6 0 M110 90 q3 -3 6 0 M92 96 q2 -2 4 0', 1.5);
     forma(elipse(89, 122, 5, 3.5), T.hueso);
     forma(elipse(111, 122, 5, 3.5), T.hueso);
     tinta(circ(89, 122, 2.2));
     tinta(circ(111, 122, 2.2));
-    linea('M82 113 L95 112 M105 112 L118 113', 3);
-    linea('M100 126 C98 133 96 137 99 140 C101 141 103 140 105 138', 2.5);
-    linea('M91 148 C96 153 104 153 109 148', 2.5);
+    // Como en el grabado con tinta clara: los rasgos interiores van en hueso para leerse sobre la piel oscura.
+    claro('M82 114 C86 111 91 111 95 113 M105 113 C109 111 114 111 118 114', 2.8);
+    claro('M100 127 C98 133 96 137 99 140 C101 141 103 140 105 138', 2.4);
+    claro('M90 148 C95 154 105 154 110 148', 2.8);
   }),
 
   // 32 · El Músico
-  32: grabado(({ forma, linea, tinta, tapa, hueso }) => {
+  32: grabado(({ forma, linea, tinta, tapa, hueso, color, grupo }) => {
+    disco({ color, linea }, T.grana);
     forma(HOMBROS, T.anil);
     linea('M70 196 L66 238 M130 196 L134 238', 2.5);
     forma(CUELLO, T.pielMorena);
     forma(CARA, T.pielMorena);
-    forma('M82 94 C82 72 90 60 100 60 C110 60 118 72 118 94 Z', T.cempa);
+    tapa('M82 94 C82 72 90 60 100 60 C110 60 118 72 118 94 Z', T.cempa);
     tapa('M46 98 C58 82 142 82 154 98 C142 112 58 112 46 98 Z', T.cempa);
     linea('M52 98 C70 106 130 106 148 98', 2);
     linea('M86 122 C89 119 93 119 95 122 M105 122 C107 119 111 119 114 122', 3);
     linea('M100 126 L98 138 L102 139', 2.5);
     tinta('M100 144 C94 141 88 143 86 149 C92 147 97 148 100 148 C103 148 108 147 114 149 C112 143 106 141 100 144 Z');
-    hueso('M124 196 L170 172', 9, T.madera);
-    forma('M166 168 L178 161 L181 169 L170 176 Z', T.madera);
-    linea('M170 164 L166 158 M176 160 L174 154', 2.5);
-    tapa('M54 206 C54 188 70 180 84 186 C92 176 112 174 124 182 C136 190 136 206 124 212 C114 220 98 218 92 214 C82 232 54 228 54 206 Z', T.cempa);
-    tinta(circ(98, 200, 7));
-    linea('M68 207 L172 167 M69 212 L173 171', 1.2);
-    linea('M66 200 L72 216', 4);
-    forma(circ(150, 182, 8), T.pielMorena);
-    forma(circ(104, 214, 8), T.pielMorena);
+    hueso('M138 192 L172 168', 10, T.madera);
+    forma('M168 164 L180 157 L183 166 L172 173 Z', T.madera);
+    linea('M172 160 L168 154 M178 157 L176 151', 2.5);
+    grupo('translate(92 204) scale(1.32) translate(-92 -204)', () => {
+      tapa('M54 206 C54 188 70 180 84 186 C92 176 112 174 124 182 C136 190 136 206 124 212 C114 220 98 218 92 214 C82 232 54 228 54 206 Z', T.cempa);
+      tinta(circ(98, 200, 7));
+      linea('M66 200 L72 216', 4);
+    });
+    linea('M60 207 L174 165 M61 212 L175 169', 1.6);
+    forma(circ(156, 180, 8), T.pielMorena);
+    forma(circ(102, 216, 9), T.pielMorena);
   }),
 
   // 34 · El Soldado
-  34: grabado(({ forma, linea, tinta, hueso, trazo }) => {
+  34: grabado(({ forma, linea, tinta, hueso, trazo, tapa, color }) => {
+    disco({ color, linea }, T.cempa);
     hueso('M126 236 L164 62', 9, T.madera);
     linea('M156 96 L168 42', 3);
     forma(HOMBROS, T.anil);
@@ -217,7 +222,7 @@ export const PERSONAS = {
     linea('M126 190 L70 238', 2.5);
     forma(CUELLO, T.pielClara);
     forma(CARA, T.pielClara);
-    forma('M80 96 L83 60 L117 60 L120 96 Z', T.anil);
+    tapa('M80 96 L83 60 L117 60 L120 96 Z', T.anil);
     tinta('M78 96 C90 104 110 104 122 96 L122 101 C110 109 90 109 78 101 Z');
     forma(circ(100, 76, 6), T.cempa);
     linea('M86 120 L95 121 M105 121 L114 120', 3);
