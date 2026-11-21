@@ -544,12 +544,25 @@ function pintarCantor(animar) {
   ui.cantorNombre.textContent = NOMBRES[ultima - 1];
   ui.cantorVerso.textContent = VERSOS[ultima - 1] ?? '';
   if (s.fase === FASE.CANTANDO) {
-    ui.cantorEtiqueta.textContent = `Salió, carta ${s.cantadas.length} de ${s.catalogo}:`;
-    reiniciarBarra(s.cantadas.length < s.catalogo ? s.limite - Date.now() : 0);
+    // Tras la última carta la sala da unos segundos de gracia para gritar: la barra los cuenta.
+    if (enGracia()) pintarCuentaGracia();
+    else ui.cantorEtiqueta.textContent = `Salió, carta ${s.cantadas.length} de ${s.catalogo}:`;
+    reiniciarBarra(s.limite - Date.now());
   } else {
     ui.cantorEtiqueta.textContent = `Última carta, ${s.cantadas.length} de ${s.catalogo}:`;
     reiniciarBarra(0);
   }
+}
+
+function enGracia() {
+  return s.fase === FASE.CANTANDO && s.cantadas.length >= s.catalogo;
+}
+
+function pintarCuentaGracia() {
+  const seg = segundosRestantes();
+  ui.cantorEtiqueta.textContent = seg > 0
+    ? `Última carta: tienes ${seg} s para gritar`
+    : 'Última carta: la ronda está por cerrar';
 }
 
 function pintarCuentaEspera() {
@@ -623,7 +636,10 @@ setInterval(() => {
   if (!s.conectado) { pintarAvisoConexion(); return; }
   if (s.fase === FASE.ESPERA) pintarCuentaEspera();
   else if (s.fase === FASE.TERMINADA) { pintarCuentaFin(); pintarEspectador(); }
-  else if (s.espectador) pintarEspectador();
+  else {
+    if (enGracia()) pintarCuentaGracia();
+    if (s.espectador) pintarEspectador();
+  }
 }, 250);
 
 conectar();
