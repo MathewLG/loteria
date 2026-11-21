@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#E9DCBC">
+<title>La sala está llena · Lotería</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+<main class="pagina">
+  <h1 id="titulo">La sala está llena</h1>
+  <p id="explicacion">Ya hay tanta gente jugando como cabe en la sala. En cuanto empiece la siguiente ronda volvemos a intentar entrar.</p>
+  <p class="cuenta" id="cuenta" aria-hidden="true"></p>
+  <p id="cuenta-texto" role="status"></p>
+  <p><a class="boton-principal" id="reintentar" href="/">Intentar ahora</a></p>
+</main>
+<script type="module">
+  const p = new URLSearchParams(location.search);
+  const razon = p.get('razon');
+  const ms = Math.min(24 * 3600 * 1000, Math.max(5000, Number(p.get('ms')) || 30000));
+  const hora = Date.now() + ms;
+  if (razon === 'cuota') {
+    document.getElementById('titulo').textContent = 'La sala descansa por hoy';
+    document.getElementById('explicacion').textContent =
+      'El juego corre gratis y hoy ya se usó todo lo que el plan gratuito permite. Las entradas se abren de nuevo a las 18:00, hora de Guadalajara.';
+    document.title = 'La sala descansa por hoy · Lotería';
+  }
+  const cuenta = document.getElementById('cuenta');
+  const texto = document.getElementById('cuenta-texto');
+  const formato = (seg) => (seg >= 3600 ? `${Math.floor(seg / 3600)} h ${Math.floor((seg % 3600) / 60)} min`
+    : seg >= 60 ? `${Math.floor(seg / 60)} min ${seg % 60} s` : `${seg} s`);
+  let ultimo = -1;
+  const tic = () => {
+    const seg = Math.max(0, Math.ceil((hora - Date.now()) / 1000));
+    if (seg === 0) { location.assign('/'); return; }
+    cuenta.textContent = formato(seg);
+    // El lector de pantalla se entera cada minuto, no cada segundo.
+    const minuto = Math.ceil(seg / 60);
+    if (minuto !== ultimo) { ultimo = minuto; texto.textContent = `Volvemos a intentar en ${formato(seg)}.`; }
+  };
+  tic();
+  setInterval(tic, 1000);
+</script>
+</body>
+</html>

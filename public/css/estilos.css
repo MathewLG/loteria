@@ -10,6 +10,7 @@
   --cempa: #E3A21A;
   --mantel: #E9DCBC;
   --apagado: #CDBF9F;
+  --hueco: 10px;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -23,26 +24,32 @@ html, body {
   -webkit-text-size-adjust: 100%;
 }
 
+/* El juego entero cabe en la pantalla: la tabla toma el espacio que sobra
+   y el botón de ¡Lotería! queda siempre a la vista. */
 .juego {
-  max-width: 460px;
-  min-height: 100dvh;
+  max-width: 480px;
+  height: 100dvh;
+  min-height: 560px;
   margin: 0 auto;
-  padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  padding: max(10px, env(safe-area-inset-top)) 14px max(12px, env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "barra" "cantor" "tabla" "pie";
+  gap: var(--hueco);
 }
 
-.barra { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.marca { margin: 0; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 26px; line-height: 1; }
-.sala-info { margin: 0; font-size: 15px; }
+.barra { grid-area: barra; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.marca { margin: 0; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 24px; line-height: 1; }
 
 button { font: inherit; }
-button:focus-visible { outline: 3px solid var(--anil); outline-offset: 3px; }
+button:focus-visible, a:focus-visible { outline: 3px solid var(--anil); outline-offset: 3px; }
+a { color: var(--anil); }
+a:hover { color: var(--tinta); }
 
 .boton-sec {
   min-height: 44px;
-  padding: 0 16px;
+  padding: 0 14px;
   border: 2px solid var(--tinta);
   border-radius: 8px;
   background: transparent;
@@ -52,36 +59,78 @@ button:focus-visible { outline: 3px solid var(--anil); outline-offset: 3px; }
   cursor: pointer;
 }
 .boton-sec:hover { background: var(--papel); }
+.boton-historial { white-space: nowrap; }
 
+.boton-enlace {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--anil);
+  font-size: 15px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.boton-enlace:hover { color: var(--tinta); }
+
+/* Aviso de conexión: flota arriba y no mueve nada. */
 .aviso-conexion {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 10;
+  width: min(460px, calc(100% - 20px));
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 10px 12px;
+  gap: 10px;
+  padding: 6px 6px 6px 14px;
   border: 2px solid var(--tinta);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--papel);
   font-size: 15px;
-  line-height: 1.35;
+  line-height: 1.3;
+  box-shadow: 0 6px 18px rgba(27, 23, 20, 0.25);
 }
 
-/* ---- Cantor ---- */
-.cantor { display: flex; gap: 16px; align-items: center; }
-.cantor-carta { width: 96px; flex-shrink: 0; aspect-ratio: 2 / 3; }
+/* ---- Cantor: la carta que acaba de salir es el foco ---- */
+.cantor { grid-area: cantor; display: flex; gap: 14px; align-items: center; min-width: 0; }
+.cantor-carta { width: clamp(100px, min(32vw, 15dvh), 150px); flex-shrink: 0; aspect-ratio: 2 / 3; }
 .carta { display: block; width: 100%; height: auto; }
-.cantor-texto { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.cantor-texto { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
 .cantor-etiqueta { margin: 0; font-size: 15px; color: var(--tinta-suave); }
-.cantor-nombre { margin: 0; font-family: 'Alfa Slab One', serif; font-size: 28px; line-height: 1.05; overflow-wrap: anywhere; }
-.barra-tiempo { height: 6px; border-radius: 3px; background: rgba(27, 23, 20, 0.15); overflow: hidden; }
+.cantor-nombre { margin: 0; font-family: 'Alfa Slab One', serif; font-size: 26px; line-height: 1.05; overflow-wrap: anywhere; }
+.cantor-verso {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cantor-verso:empty, .cantor-nombre:empty { display: none; }
+.barra-tiempo { height: 6px; margin: 2px 0; border-radius: 3px; background: rgba(27, 23, 20, 0.15); overflow: hidden; }
 .barra-tiempo span { display: block; width: 100%; height: 100%; background: var(--tinta); transform-origin: left center; transform: scaleX(0); }
 @keyframes avance { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.sala-info { margin: 0; font-size: 14px; color: var(--tinta-suave); }
+.apodo { margin: 0; font-size: 14px; line-height: 1.3; display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; }
 
-.cantor-figura { margin: 2px 0 0; font-size: 15px; line-height: 1.35; }
-
-/* ---- Tabla ---- */
+/* ---- Zona de la tabla: se ajusta al alto disponible ---- */
+.tabla-zona {
+  grid-area: tabla;
+  min-height: 0;
+  container-type: size;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+/* Alto de la tabla = 1.5 × (ancho − 30 px de huecos) + 30 px. Se despeja el ancho que cabe en el alto. */
 .tabla {
+  flex-shrink: 0;
+  width: min(100cqw, calc((100cqh - 30px) / 1.5 + 30px));
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
@@ -89,6 +138,8 @@ button:focus-visible { outline: 3px solid var(--anil); outline-offset: 3px; }
   border-radius: 10px;
   background: var(--tinta);
 }
+/* Con el selector de tablas arriba (unos 140 px), la tabla se achica para seguir cabiendo. */
+.eleccion:not([hidden]) ~ .tabla { width: min(100cqw, calc((100cqh - 170px) / 1.5 + 30px)); }
 .casilla {
   position: relative;
   display: block;
@@ -101,37 +152,50 @@ button:focus-visible { outline: 3px solid var(--anil); outline-offset: 3px; }
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-/* Sobre el tablero negro, el añil no contrasta: el foco va en cempasúchil. */
+/* Sobre el tablero negro el añil no contrasta: el foco va en cempasúchil. */
 .casilla:focus-visible { outline: 3px solid var(--cempa); outline-offset: 2px; }
 
-.tabla-cargando {
-  padding: 48px 16px;
+.tabla-cargando, .espectador {
+  width: 100%;
+  padding: 32px 16px;
   border: 2px dashed var(--tinta-suave);
   border-radius: 10px;
   text-align: center;
   font-size: 16px;
   line-height: 1.4;
 }
+.espectador h2 { margin: 0 0 8px; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 20px; }
+.espectador p { margin: 0 0 6px; }
+.espectador-cuenta { font-weight: 700; }
+
+/* ---- Elegir tabla ---- */
+.eleccion { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.eleccion-titulo { margin: 0; font-weight: 700; font-size: 15px; }
+.eleccion-opciones { display: flex; gap: 10px; }
+.opcion-tabla {
+  min-height: 44px;
+  padding: 4px;
+  border: 2px solid var(--tinta-suave);
+  border-radius: 8px;
+  background: var(--papel);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--tinta);
+  font-weight: 700;
+  font-size: 14px;
+}
+.opcion-tabla[aria-checked="true"] { border-color: var(--grana); border-width: 3px; padding: 3px; background: #F7EBD0; }
+.opcion-tabla:hover { border-color: var(--tinta); }
+.mini-tabla { display: grid; grid-template-columns: repeat(4, 11px); gap: 1px; padding: 2px; border-radius: 3px; background: var(--tinta); }
+.mini-tabla .carta { width: 11px; }
 
 /* ---- Frijol ---- */
-.frijol {
-  position: absolute;
-  width: 46%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
+.frijol { position: absolute; width: 46%; transform: translate(-50%, -50%); pointer-events: none; }
 .frijol-cuerpo, .frijol-giro { display: block; position: relative; }
 .frijol svg { display: block; width: 100%; height: auto; }
-.frijol-sombra {
-  position: absolute;
-  left: 10%;
-  right: 10%;
-  bottom: -10%;
-  height: 34%;
-  border-radius: 50%;
-  background: var(--tinta);
-  opacity: 0.3;
-}
+.frijol-sombra { position: absolute; left: 10%; right: 10%; bottom: -10%; height: 34%; border-radius: 50%; background: var(--tinta); opacity: 0.3; }
 .cae .frijol-cuerpo { animation: caer 420ms cubic-bezier(.3, .7, .4, 1) both; }
 .cae .frijol-sombra { animation: sombra 420ms ease-out both; }
 @keyframes caer {
@@ -155,7 +219,6 @@ button:focus-visible { outline: 3px solid var(--anil); outline-offset: 3px; }
   60% { transform: translateX(-3px); }
   80% { transform: translateX(3px); }
 }
-
 .entra { animation: entra 380ms cubic-bezier(.2, .8, .3, 1); }
 @keyframes entra {
   from { transform: translateY(-16px) rotate(-7deg); opacity: 0; }
@@ -163,15 +226,15 @@ button:focus-visible { outline: 3px solid var(--anil); outline-offset: 3px; }
 }
 
 /* ---- Pie ---- */
-.pie { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
-.mensaje { margin: 0; min-height: 22px; text-align: center; font-size: 16px; line-height: 1.35; color: var(--tinta-suave); }
+.pie { grid-area: pie; display: flex; flex-direction: column; gap: 6px; background: var(--mantel); }
+.mensaje { margin: 0; min-height: 21px; text-align: center; font-size: 15px; line-height: 1.35; color: var(--tinta-suave); }
 .mensaje.gano {
-  padding: 12px 14px;
+  padding: 8px 12px;
   border-radius: 8px;
   background: var(--grana);
   color: var(--papel);
   font-family: 'Alfa Slab One', serif;
-  font-size: 20px;
+  font-size: 18px;
 }
 .boton-grito {
   min-height: 56px;
@@ -184,36 +247,79 @@ button:focus-visible { outline: 3px solid var(--anil); outline-offset: 3px; }
   cursor: pointer;
 }
 .boton-grito:hover { background: var(--grana-oscura); }
-.boton-grito:disabled { background: var(--apagado); color: var(--tinta); cursor: default; }
+.boton-grito:disabled { background: var(--apagado); color: var(--tinta); cursor: default; font-family: 'Atkinson Hyperlegible', sans-serif; font-weight: 700; font-size: 18px; }
 
-/* ---- Fin de ronda ---- */
+/* ---- Fin de ronda: ocupa el lugar del pie ---- */
 .fin {
-  margin-top: auto;
-  padding: 16px;
+  grid-area: pie;
+  padding: 12px 14px;
   border: 2px solid var(--tinta);
   border-radius: 10px;
   background: var(--papel);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
-.fin h2 { margin: 0; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 22px; }
-.fin p { margin: 0; line-height: 1.4; }
-.fin-resultado { font-size: 17px; }
-.fin-siguiente { color: var(--tinta-suave); font-size: 15px; }
-.verificacion { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; line-height: 1.4; }
+.fin h2 { margin: 0; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 20px; }
+.fin p { margin: 0; line-height: 1.35; }
+.fin-resultado { font-size: 16px; }
+.fin-siguiente { color: var(--tinta-suave); font-size: 15px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+.fin-siguiente a { min-height: 44px; display: inline-flex; align-items: center; }
+.verificacion { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.35; }
 .verificacion p { margin: 0; }
-.sello { flex-shrink: 0; width: 28px; height: 28px; }
+.sello { flex-shrink: 0; width: 26px; height: 26px; }
 /* La huella es un dato técnico que alguien podría querer copiar: va en monoespaciada. */
-.huella { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; }
+.huella { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
 
-.solo-lector {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
+/* ---- Historial ---- */
+.historial {
+  width: min(440px, calc(100% - 20px));
+  max-height: min(640px, calc(100dvh - 40px));
+  padding: 0;
+  border: 2px solid var(--tinta);
+  border-radius: 12px;
+  background: var(--papel);
+  color: var(--tinta);
+}
+.historial::backdrop { background: rgba(27, 23, 20, 0.45); }
+.historial-cabeza {
+  position: sticky;
+  top: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 10px 16px;
+  border-bottom: 2px solid var(--tinta);
+  background: var(--papel);
+}
+.historial-cabeza h2 { margin: 0; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 20px; }
+.historial-vacio { margin: 0; padding: 16px; }
+.historial-lista { margin: 0; padding: 8px 12px 14px; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.historial-lista li { display: flex; align-items: center; gap: 12px; padding: 4px; border-radius: 8px; font-size: 16px; }
+.historial-lista li .carta { width: 40px; flex-shrink: 0; }
+.historial-lista li.mia { background: #F7EBD0; outline: 2px solid var(--grana); outline-offset: -2px; }
+.historial-lista .orden { width: 2.2em; color: var(--tinta-suave); font-size: 14px; text-align: right; }
+.historial-lista .etiqueta-mia { margin-left: auto; font-size: 14px; font-weight: 700; color: var(--grana-oscura); }
+
+.solo-lector { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---- Escritorio: dos columnas, el cantor a la izquierda y la tabla a la derecha ---- */
+@media (min-width: 900px) {
+  .juego {
+    max-width: 1120px;
+    padding: 20px 28px;
+    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "barra barra" "cantor tabla" "pie tabla";
+    column-gap: 40px;
+  }
+  .marca { font-size: 30px; }
+  .cantor { flex-direction: column; align-items: flex-start; align-self: start; }
+  .cantor-carta { width: min(220px, 26dvh); }
+  .cantor-nombre { font-size: 32px; }
+  .cantor-verso { font-size: 17px; -webkit-line-clamp: 3; }
+  .pie, .fin { align-self: end; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -221,3 +327,51 @@ button:focus-visible { outline: 3px solid var(--anil); outline-offset: 3px; }
   .cae .frijol-sombra, .sacude, .entra { animation: none; }
 }
 @keyframes aparece { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---- Páginas sencillas: sala llena y verificación ---- */
+.pagina {
+  max-width: 640px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: max(24px, env(safe-area-inset-top)) 18px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.pagina h1 { margin: 0; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 32px; line-height: 1.1; }
+.pagina h2 { margin: 0; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 22px; }
+.pagina p { margin: 0; font-size: 17px; line-height: 1.45; }
+.pagina .cuenta { font-family: 'Alfa Slab One', serif; font-size: 48px; color: var(--grana); line-height: 1; }
+.pagina form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.pagina label { display: flex; flex-direction: column; gap: 4px; font-weight: 700; font-size: 15px; flex: 1 1 260px; }
+.pagina input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 2px solid var(--tinta);
+  border-radius: 8px;
+  background: var(--papel);
+  color: var(--tinta);
+  font: 16px ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+.pagina input:focus-visible { outline: 3px solid var(--anil); outline-offset: 2px; }
+.pagina .ayuda { font-size: 14px; color: var(--tinta-suave); font-weight: 400; }
+.boton-principal {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--tinta);
+  color: var(--papel);
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.boton-principal:hover { background: var(--tinta-suave); color: var(--papel); }
+.resultado-verificacion { padding: 14px; border: 2px solid var(--tinta); border-radius: 10px; background: var(--papel); display: flex; flex-direction: column; gap: 10px; }
+.resultado-verificacion dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; font-size: 15px; }
+.resultado-verificacion dt { font-weight: 700; }
+.resultado-verificacion dd { margin: 0; overflow-wrap: anywhere; }
+.cartas-verificadas { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }

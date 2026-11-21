@@ -1,23 +1,34 @@
 import {
-  T, FASE, MOTIVO, decodificar, codificarLoteria, cumpleFigura, mascaraCantadas,
+  T, FASE, MOTIVO, decodificar, codificarElijo, codificarLoteria, cumpleFigura, mascaraCantadas,
 } from './protocolo.js';
-import { aHex, barajar, igualesBytes, sha256 } from './baraja.js';
+import { aHex, igualesBytes } from './baraja.js';
 import { NOMBRES, SVG_FRIJOL, svgCarta, svgReverso } from './cartas.js';
+import { VERSOS } from './versos.js';
+import { generarApodo } from './apodos.js';
+import { claveDeRonda, verificarRonda } from './verificacion.js';
+import { duracionAproximada, msHastaSiguienteRonda, textoBoton } from './estado-ui.js';
 
 const $ = (id) => document.getElementById(id);
 const ui = {
-  infoSala: $('info-sala'),
   aviso: $('aviso-conexion'),
   avisoTexto: $('aviso-texto'),
   reintentar: $('boton-reintentar'),
+  botonHistorial: $('boton-historial'),
+  contadorCantadas: $('contador-cantadas'),
   cantorCarta: $('cantor-carta'),
   cantorEtiqueta: $('cantor-etiqueta'),
   cantorNombre: $('cantor-nombre'),
+  cantorVerso: $('cantor-verso'),
   barraTiempo: $('barra-tiempo'),
-  figura: $('cantor-figura'),
-  conteoFrijoles: $('conteo-frijoles'),
+  infoSala: $('info-sala'),
+  apodo: $('apodo'),
+  botonApodo: $('boton-apodo'),
   anuncio: $('anuncio'),
   cargando: $('tabla-cargando'),
+  eleccion: $('eleccion'),
+  eleccionOpciones: $('eleccion-opciones'),
+  espectador: $('espectador'),
+  espectadorCuenta: $('espectador-cuenta'),
   tabla: $('tabla'),
   pie: $('pie'),
   mensaje: $('mensaje'),
@@ -27,6 +38,11 @@ const ui = {
   finResultado: $('fin-resultado'),
   finVerificacion: $('fin-verificacion'),
   finSiguiente: $('fin-siguiente'),
+  finEnlace: $('fin-enlace'),
+  historial: $('historial'),
+  historialLista: $('historial-lista'),
+  historialVacio: $('historial-vacio'),
+  historialCerrar: $('historial-cerrar'),
 };
 
 const s = {
@@ -34,8 +50,12 @@ const s = {
   ronda: 0,
   fase: -1,
   figura: 0,
-  catalogo: 16,
+  catalogo: 54,
+  tablas: [],
+  elegida: 0,
+  eligiendo: false,
   tabla: [],
+  espectador: false,
   cantadas: [],
   huella: null,
   semilla: null,
@@ -44,41 +64,47 @@ const s = {
   jugadores: 0,
   ganadores: 0,
   limite: 0,
+  msEntreCartas: 6000,
   verificacion: null,
   esperandoResultado: false,
 };
 
-// ---- Identidad del jugador: un token al azar guardado en este navegador ----
+// ---- Identidad del jugador: token y apodo guardados en este navegador ----
 
-function nuevoToken() {
-  return aHex(crypto.getRandomValues(new Uint8Array(16)));
-}
+const guardado = {
+  leer(clave) { try { return localStorage.getItem(clave); } catch { return null; } },
+  escribir(clave, valor) { try { localStorage.setItem(clave, valor); } catch { /* sin almacenamiento */ } },
+};
 
 function obtenerToken() {
-  try {
-    let t = localStorage.getItem('loteria:token');
-    if (!/^[0-9a-f]{32}$/.test(t ?? '')) {
-      t = nuevoToken();
-      localStorage.setItem('loteria:token', t);
-    }
-    return t;
-  } catch {
-    return nuevoToken();
+  let t = guardado.leer('loteria:token');
+  if (!/^[0-9a-f]{32}$/.test(t ?? '')) {
+    t = aHex(crypto.getRandomValues(new Uint8Array(16)));
+    guardado.escribir('loteria:token', t);
   }
+  return t;
 }
 const token = obtenerToken();
 
-// Los frijoles sobreviven a recargar la página, pero solo dentro de la misma ronda.
-function guardarMarcas() {
-  try {
-    localStorage.setItem('loteria:marcas', JSON.stringify({ huella: aHex(s.huella), marcadas: s.marcadas }));
-  } catch { /* sin almacenamiento: los frijoles viven solo en memoria */ }
-}
+let apodo = guardado.leer('loteria:apodo') || generarApodo();
+guardado.escribir('loteria:apodo', apodo);
+ui.apodo.textContent = apodo;
+ui.botonApodo.addEventListener('click', () => {
+  apodo = generarApodo();
+  guardado.escribir('loteria:apodo', apodo);
+  ui.apodo.textContent = apodo;
+  anunciar(`Tu nuevo apodo es ${apodo}.`);
+});
 
+// Los frijoles sobreviven a recargar la página, pero solo dentro de la misma ronda y tabla.
+const claveMarcas = () => `${aHex(s.huella)}:${s.elegida}`;
+function guardarMarcas() {
+  guardado.escribir('loteria:marcas', JSON.stringify({ clave: claveMarcas(), marcadas: s.marcadas }));
+}
 function cargarMarcas() {
   try {
-    const guardado = JSON.parse(localStorage.getItem('loteria:marcas') ?? 'null');
-    if (guardado && guardado.huella === aHex(s.huella)) return guardado.marcadas & 0xffff;
+    const g = JSON.parse(guardado.leer('loteria:marcas') ?? 'null');
+    if (g && g.clave === claveMarcas()) return g.marcadas & 0xffff;
   } catch { /* nada guardado */ }
   return 0;
 }
@@ -86,6 +112,7 @@ function cargarMarcas() {
 // ---- Conexión ----
 
 let ws = null;
+let abrio = false;
 let intentos = 0;
 let temporizadorReconexion = 0;
 let proximoIntento = 0;
@@ -93,24 +120,49 @@ let proximoIntento = 0;
 function conectar() {
   clearTimeout(temporizadorReconexion);
   proximoIntento = 0;
-  if (s.conectado || !s.huella) mostrarAviso(null);
+  abrio = false;
   const protocolo = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${protocolo}://${location.host}/ws?t=${token}`);
+  // `r` le dice a la sala en qué ronda estaba este jugador: al volver a la misma ronda no queda como espectador.
+  const ronda = s.ronda ? `&r=${s.ronda}` : '';
+  ws = new WebSocket(`${protocolo}://${location.host}/ws?t=${token}${ronda}`);
   ws.binaryType = 'arraybuffer';
+  ws.addEventListener('open', () => { abrio = true; });
   ws.addEventListener('message', (evento) => {
     const m = decodificar(evento.data);
     if (m) manejar(m);
   });
-  ws.addEventListener('close', programarReconexion);
+  ws.addEventListener('close', alCerrar);
+}
+
+async function alCerrar() {
+  s.conectado = false;
+  s.esperandoResultado = false;
+  s.eligiendo = false;
+  // Un rechazo antes de abrir puede ser sala llena o cuota agotada: la sala lo explica con un 503.
+  if (!abrio && await revisarAdmision()) return;
+  programarReconexion();
+}
+
+/** Pregunta a /ws sin pedir WebSocket. Si la sala responde 503 con su razón, manda a la página de sala llena. */
+async function revisarAdmision() {
+  try {
+    const r = await fetch(`/ws?t=${token}`, { cache: 'no-store' });
+    if (r.status !== 503) return false;
+    const { razon, reintentarEnMs } = await r.json();
+    if (razon !== 'llena' && razon !== 'cuota') return false;
+    location.assign(`/sala-llena.html?razon=${encodeURIComponent(razon)}&ms=${Math.max(5000, Number(reintentarEnMs) || 0)}`);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function programarReconexion() {
-  s.conectado = false;
-  s.esperandoResultado = false;
   const espera = Math.min(15000, 1000 * 2 ** intentos) + Math.random() * 400;
   intentos += 1;
   proximoIntento = Date.now() + espera;
   temporizadorReconexion = setTimeout(conectar, espera);
+  congelarCuentas();
   pintarAvisoConexion();
   actualizarBoton();
 }
@@ -118,10 +170,8 @@ function programarReconexion() {
 function pintarAvisoConexion() {
   if (s.conectado || !proximoIntento) return;
   const seg = Math.max(1, Math.ceil((proximoIntento - Date.now()) / 1000));
-  if (!s.huella) {
-    ui.cargando.textContent = `No pudimos conectar con la sala. Reintentamos en ${seg} s.`;
-  }
-  mostrarAviso(`Se perdió la conexión con la sala. Reintentamos en ${seg} s.`);
+  if (!s.huella) ui.cargando.textContent = `No pudimos conectar con la sala. Reintentamos en ${seg} s.`;
+  mostrarAviso(`Sin conexión con la sala. Reintentamos en ${seg} s.`);
 }
 
 function mostrarAviso(texto) {
@@ -135,40 +185,45 @@ ui.reintentar.addEventListener('click', () => {
   conectar();
 });
 
+/** Sin conexión, las cuentas regresivas no avanzan con datos viejos. */
+function congelarCuentas() {
+  ui.barraTiempo.style.animationPlayState = 'paused';
+  if (s.huella) {
+    ui.cantorEtiqueta.textContent = 'Sin conexión con la sala';
+    if (s.fase === FASE.ESPERA) ui.cantorNombre.textContent = 'En pausa';
+  }
+}
+
 // ---- Mensajes de la sala ----
 
 function manejar(m) {
   switch (m.tipo) {
-    case T.ESTADO: {
-      const otraRonda = !s.huella || !igualesBytes(s.huella, m.huella);
-      Object.assign(s, {
-        ronda: m.ronda, fase: m.fase, figura: m.figura, catalogo: m.catalogo, tabla: m.tabla,
-        cantadas: m.cantadas, huella: m.huella, semilla: m.semilla, lugar: m.lugar,
-        jugadores: m.jugadores, ganadores: m.ganadores, limite: Date.now() + m.msSiguiente,
-        conectado: true, esperandoResultado: false,
-      });
-      intentos = 0;
-      proximoIntento = 0;
-      mostrarAviso(null);
-      if (otraRonda) {
-        s.marcadas = cargarMarcas();
-        s.verificacion = null;
+    case T.ESTADO: alEstado(m); break;
+    case T.ELECCION:
+      s.eligiendo = false;
+      // La sala responde con la tabla que quedó elegida: si rechazó el cambio, es la anterior.
+      if (s.tablas[m.indice] && m.indice !== s.elegida) {
+        s.elegida = m.indice;
+        s.tabla = s.tablas[m.indice];
+        s.marcadas = 0;
         construirTabla();
-        decir('');
       }
-      if (s.fase === FASE.TERMINADA && s.semilla) verificar();
-      pintarTodo(otraRonda);
-      if (otraRonda && s.fase === FASE.ESPERA) anunciar('Nueva ronda. Pura llena: gana quien llene toda su tabla.');
+      pintarEleccion();
+      if (m.ok) anunciar(`Elegiste la tabla ${m.indice + 1}.`);
+      else decir('Ya no se puede cambiar de tabla.');
       break;
-    }
     case T.CARTA: {
       if (m.ronda !== s.ronda || m.indice <= s.cantadas.length) return;
       s.cantadas.push(m.carta);
       s.fase = FASE.CANTANDO;
+      s.msEntreCartas = m.msSiguiente || s.msEntreCartas;
       s.limite = Date.now() + m.msSiguiente;
-      anunciar(`Salió ${NOMBRES[m.carta - 1]}.`);
+      ui.eleccion.hidden = true;
+      anunciar(`Salió ${NOMBRES[m.carta - 1]}. ${VERSOS[m.carta - 1] ?? ''}`);
       pintarCantor(true);
       pintarInfo();
+      pintarHistorial();
+      pintarEspectador();
       actualizarBoton();
       break;
     }
@@ -186,6 +241,8 @@ function manejar(m) {
         decir('La sala no ve tu tabla llena. Revisa tus frijoles.');
       } else if (m.motivo === MOTIVO.MUY_SEGUIDO) {
         decir('Espera la siguiente carta para volver a gritar.');
+      } else if (m.motivo === MOTIVO.ESPECTADOR) {
+        decir('En esta ronda estás mirando. Juegas en la siguiente.');
       } else {
         decir('Esta ronda ya no está en juego.');
       }
@@ -204,23 +261,56 @@ function manejar(m) {
   }
 }
 
-/** Comprueba que la semilla revelada da la huella publicada y exactamente las cartas que salieron. */
-function verificar() {
-  const huellaOk = igualesBytes(sha256(s.semilla), s.huella);
-  const baraja = barajar(s.semilla, s.catalogo);
-  const ordenOk = s.cantadas.every((carta, i) => baraja[i] === carta);
-  s.verificacion = { ok: huellaOk && ordenOk, huella: aHex(s.huella) };
+function alEstado(m) {
+  const otraRonda = !s.huella || !igualesBytes(s.huella, m.huella);
+  const otraTabla = otraRonda || m.elegida !== s.elegida || m.tablas.length !== s.tablas.length;
+  Object.assign(s, {
+    ronda: m.ronda, fase: m.fase, figura: m.figura, catalogo: m.catalogo,
+    tablas: m.tablas, elegida: m.elegida, tabla: m.tabla, espectador: m.espectador,
+    cantadas: m.cantadas, huella: m.huella, semilla: m.semilla, lugar: m.lugar,
+    jugadores: m.jugadores, ganadores: m.ganadores, limite: Date.now() + m.msSiguiente,
+    conectado: true, esperandoResultado: false, eligiendo: false,
+  });
+  intentos = 0;
+  proximoIntento = 0;
+  mostrarAviso(null);
+  ui.barraTiempo.style.animationPlayState = 'running';
+  if (otraRonda) {
+    s.verificacion = null;
+    decir('');
+  }
+  if (otraTabla) {
+    s.marcadas = cargarMarcas();
+    construirTabla();
+  }
+  if (s.fase === FASE.TERMINADA && s.semilla) verificar();
+  pintarTodo(otraRonda);
+  if (otraRonda && s.fase === FASE.ESPERA) anunciar('Nueva ronda. Elige tu tabla. Gana quien llene toda su tabla.');
 }
 
-// ---- Tabla y frijoles ----
+function verificar() {
+  const r = verificarRonda({ semilla: s.semilla, huella: s.huella, cantadas: s.cantadas, catalogo: s.catalogo });
+  s.verificacion = { ok: r.ok, huella: aHex(s.huella) };
+}
+
+// ---- Tabla, elección y frijoles ----
+
+/** Cartas chicas (tabla, miniaturas, historial): variante compacta con nombre y número legibles. */
+function cartaChica(carta) {
+  return svgCarta(carta, { compacta: true });
+}
 
 function construirTabla() {
   ui.tabla.replaceChildren();
+  if (s.espectador || !s.tabla.length) {
+    ui.tabla.hidden = true;
+    return;
+  }
   s.tabla.forEach((carta, i) => {
     const boton = document.createElement('button');
     boton.type = 'button';
     boton.className = 'casilla';
-    boton.innerHTML = svgCarta(carta);
+    boton.innerHTML = cartaChica(carta);
     boton.addEventListener('click', () => tocar(i));
     ui.tabla.append(boton);
     if (s.marcadas & (1 << i)) ponerFrijol(boton, i, false);
@@ -283,14 +373,60 @@ function tocar(i) {
   }
   etiquetarCasilla(boton, i);
   guardarMarcas();
-  pintarFigura();
+  pintarHistorial();
+}
+
+function pintarEleccion() {
+  const visible = s.conectado && s.fase === FASE.ESPERA && !s.espectador && s.tablas.length === 3;
+  ui.eleccion.hidden = !visible;
+  if (!visible) return;
+  if (ui.eleccionOpciones.children.length !== 3 || ui.eleccionOpciones.dataset.ronda !== String(s.ronda)) {
+    ui.eleccionOpciones.dataset.ronda = String(s.ronda);
+    ui.eleccionOpciones.replaceChildren(...s.tablas.map((tabla, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'opcion-tabla';
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-label', `Tabla ${i + 1}: ${tabla.slice(0, 4).map((c) => NOMBRES[c - 1]).join(', ')} y 12 más`);
+      b.innerHTML = `<span class="mini-tabla" aria-hidden="true">${tabla.map((c) => cartaChica(c)).join('')}</span><span aria-hidden="true">${i + 1}</span>`;
+      b.addEventListener('click', () => elegirTabla(i));
+      b.addEventListener('keydown', (e) => moverEleccion(e, i));
+      return b;
+    }));
+  }
+  [...ui.eleccionOpciones.children].forEach((b, i) => {
+    const elegida = i === s.elegida;
+    b.setAttribute('aria-checked', String(elegida));
+    b.tabIndex = elegida ? 0 : -1;
+    b.setAttribute('aria-busy', String(s.eligiendo));
+  });
+}
+
+/** Flechas dentro del grupo de radio, como pide el patrón de ARIA. */
+function moverEleccion(e, i) {
+  const pasos = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+  if (!(e.key in pasos)) return;
+  e.preventDefault();
+  const siguiente = (i + pasos[e.key] + 3) % 3;
+  elegirTabla(siguiente);
+  ui.eleccionOpciones.children[siguiente]?.focus();
+}
+
+function elegirTabla(i) {
+  if (s.fase !== FASE.ESPERA || s.espectador || i === s.elegida) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(codificarElijo(s.ronda, i));
+  s.eligiendo = true;
+  // Se muestra de inmediato; si la sala la rechaza, ELECCION la regresa.
+  s.elegida = i;
+  s.tabla = s.tablas[i];
+  s.marcadas = 0;
+  construirTabla();
+  pintarEleccion();
 }
 
 ui.botonLoteria.addEventListener('click', () => {
-  if (s.fase !== FASE.CANTANDO) {
-    decir(s.fase === FASE.ESPERA ? 'La ronda todavía no empieza.' : 'Esta ronda ya terminó.');
-    return;
-  }
+  if (s.fase !== FASE.CANTANDO || s.espectador || s.lugar) return;
   const validas = s.marcadas & mascaraCantadas(s.tabla, s.cantadas);
   if (!cumpleFigura(validas, s.figura)) {
     sacudir(ui.botonLoteria);
@@ -313,6 +449,29 @@ ui.botonLoteria.addEventListener('click', () => {
   }, 6000);
 });
 
+// ---- Historial ----
+
+ui.botonHistorial.addEventListener('click', () => {
+  ui.historial.showModal();
+  pintarHistorial();
+});
+ui.historialCerrar.addEventListener('click', () => ui.historial.close());
+ui.historial.addEventListener('click', (e) => { if (e.target === ui.historial) ui.historial.close(); });
+
+function pintarHistorial() {
+  ui.contadorCantadas.textContent = String(s.cantadas.length);
+  if (!ui.historial.open) return;
+  const mias = new Set(s.tabla);
+  ui.historialVacio.hidden = s.cantadas.length > 0;
+  ui.historialLista.replaceChildren(...s.cantadas.map((carta, i) => ({ carta, orden: i + 1 })).reverse().map(({ carta, orden }) => {
+    const li = document.createElement('li');
+    const mia = mias.has(carta) && !s.espectador;
+    if (mia) li.className = 'mia';
+    li.innerHTML = `<span class="orden">${orden}.</span>${cartaChica(carta)}<span>${NOMBRES[carta - 1]}</span>${mia ? '<span class="etiqueta-mia">En tu tabla</span>' : ''}`;
+    return li;
+  }));
+}
+
 // ---- Pintar ----
 
 function decir(texto, gano = false) {
@@ -324,10 +483,16 @@ function anunciar(texto) {
   ui.anuncio.textContent = texto;
 }
 
+function contarFrijoles(mascara) {
+  let n = 0;
+  for (let m = mascara; m; m &= m - 1) n += 1;
+  return n;
+}
+
 function textoResultado() {
   if (s.lugar) return `¡Ganaste! Llegaste en el lugar ${s.lugar} de ${s.ganadores}.`;
   if (s.ganadores === 0) return 'Nadie llenó su tabla esta vez.';
-  return `Ganaron ${s.ganadores} ${s.ganadores === 1 ? 'persona' : 'personas'}. Esta vez no te tocó.`;
+  return `Ganaron ${s.ganadores} ${s.ganadores === 1 ? 'persona' : 'personas'}.${s.espectador ? '' : ' Esta vez no te tocó.'}`;
 }
 
 function segundosRestantes() {
@@ -337,15 +502,24 @@ function segundosRestantes() {
 function pintarTodo(otraRonda) {
   pintarInfo();
   pintarCantor(otraRonda || s.fase === FASE.CANTANDO);
-  pintarFigura();
+  pintarEleccion();
+  pintarEspectador();
+  pintarHistorial();
   pintarFin();
   actualizarBoton();
+}
+
+function pintarApodo() {
+  // El apodo se muestra en la espera; durante el canto y al final el espacio es de la tabla y el resultado.
+  document.getElementById('apodo-linea').hidden = s.fase !== FASE.ESPERA || s.espectador;
 }
 
 function pintarInfo() {
   const gente = `${s.jugadores} ${s.jugadores === 1 ? 'jugador' : 'jugadores'}`;
   const ganadores = s.fase === FASE.CANTANDO && s.ganadores > 0 ? ` · ${s.ganadores} ${s.ganadores === 1 ? 'ganador' : 'ganadores'}` : '';
-  ui.infoSala.textContent = `Ronda ${s.ronda} · ${gente}${ganadores}`;
+  const marcadas = s.fase === FASE.CANTANDO && !s.espectador ? ` · ${contarFrijoles(s.marcadas)} de 16 frijoles` : '';
+  ui.infoSala.textContent = `Ronda ${s.ronda} · ${gente}${ganadores}${marcadas}`;
+  pintarApodo();
 }
 
 let ultimoSegundo = -1;
@@ -353,7 +527,8 @@ let ultimoSegundo = -1;
 function pintarCantor(animar) {
   ultimoSegundo = -1;
   if (s.fase === FASE.ESPERA) {
-    ui.cantorEtiqueta.textContent = `Ronda ${s.ronda}`;
+    ui.cantorEtiqueta.textContent = 'Pura llena';
+    ui.cantorVerso.textContent = 'Gana quien llene toda su tabla.';
     pintarCuentaEspera();
     reiniciarBarra(s.limite - Date.now());
     return;
@@ -366,15 +541,28 @@ function pintarCantor(animar) {
     void ui.cantorCarta.offsetWidth;
     ui.cantorCarta.classList.add('entra');
   }
+  ui.cantorNombre.textContent = NOMBRES[ultima - 1];
+  ui.cantorVerso.textContent = VERSOS[ultima - 1] ?? '';
   if (s.fase === FASE.CANTANDO) {
-    ui.cantorEtiqueta.textContent = `Salió, carta ${s.cantadas.length} de ${s.catalogo}:`;
-    ui.cantorNombre.textContent = NOMBRES[ultima - 1];
-    reiniciarBarra(s.cantadas.length < s.catalogo ? s.limite - Date.now() : 0);
+    // Tras la última carta la sala da unos segundos de gracia para gritar: la barra los cuenta.
+    if (enGracia()) pintarCuentaGracia();
+    else ui.cantorEtiqueta.textContent = `Salió, carta ${s.cantadas.length} de ${s.catalogo}:`;
+    reiniciarBarra(s.limite - Date.now());
   } else {
     ui.cantorEtiqueta.textContent = `Última carta, ${s.cantadas.length} de ${s.catalogo}:`;
-    ui.cantorNombre.textContent = NOMBRES[ultima - 1];
     reiniciarBarra(0);
   }
+}
+
+function enGracia() {
+  return s.fase === FASE.CANTANDO && s.cantadas.length >= s.catalogo;
+}
+
+function pintarCuentaGracia() {
+  const seg = segundosRestantes();
+  ui.cantorEtiqueta.textContent = seg > 0
+    ? `Última carta: tienes ${seg} s para gritar`
+    : 'Última carta: la ronda está por cerrar';
 }
 
 function pintarCuentaEspera() {
@@ -390,20 +578,24 @@ function reiniciarBarra(ms) {
   barra.style.animation = 'none';
   void barra.offsetWidth;
   barra.style.animation = ms > 0 ? `avance ${Math.round(ms)}ms linear forwards` : 'none';
+  barra.style.animationPlayState = 'running';
 }
 
-function contarFrijoles(mascara) {
-  let n = 0;
-  for (let m = mascara; m; m &= m - 1) n += 1;
-  return n;
-}
-
-function pintarFigura() {
-  ui.figura.hidden = false;
-  const n = contarFrijoles(s.marcadas);
-  ui.conteoFrijoles.textContent = n === 0
-    ? 'Gana quien llene toda su tabla.'
-    : `Llevas ${n} de 16 frijoles.`;
+function pintarEspectador() {
+  ui.espectador.hidden = !s.espectador || s.fase === FASE.ESPERA;
+  if (ui.espectador.hidden) return;
+  ui.cargando.hidden = true;
+  if (s.fase === FASE.TERMINADA) {
+    ui.espectadorCuenta.textContent = `La siguiente ronda empieza en ${segundosRestantes()} s.`;
+    return;
+  }
+  const ms = msHastaSiguienteRonda({
+    catalogo: s.catalogo,
+    cantadas: s.cantadas.length,
+    msEntreCartas: s.msEntreCartas,
+    msParaSiguienteCarta: Math.max(0, s.limite - Date.now()),
+  });
+  ui.espectadorCuenta.textContent = `Faltan ${s.catalogo - s.cantadas.length} cartas: tu ronda empieza en unos ${duracionAproximada(ms)}.`;
 }
 
 function pintarFin() {
@@ -419,9 +611,10 @@ function pintarFin() {
       ? '<svg class="sello" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="13" fill="#2F4F8F"/><path d="M8 14.5 L12.5 19 L20.5 9.5" fill="none" stroke="#F3E7CB" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>'
       : '<svg class="sello" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="13" fill="#B8322A"/><path d="M9 9 L19 19 M19 9 L9 19" stroke="#F3E7CB" stroke-width="3" stroke-linecap="round"/></svg>';
     const texto = v.ok
-      ? '<p><b>Baraja verificada en tu dispositivo.</b> Antes de cantar, la sala publicó esta huella. Con la semilla que reveló al final, tu dispositivo volvió a revolver las cartas y salió exactamente el mismo orden.</p>'
+      ? '<p><b>Baraja verificada en tu dispositivo.</b> La semilla revelada da la huella publicada antes de cantar y produce exactamente estas cartas.</p>'
       : '<p><b>La verificación no coincide.</b> La semilla revelada no produce las cartas que salieron.</p>';
     ui.finVerificacion.innerHTML = `${sello}<div>${texto}<p class="huella">${v.huella.slice(0, 32)}…</p></div>`;
+    ui.finEnlace.href = `/verificar.html?clave=${encodeURIComponent(claveDeRonda(s.ronda, v.huella))}`;
   }
   pintarCuentaFin();
 }
@@ -432,24 +625,21 @@ function pintarCuentaFin() {
 }
 
 function actualizarBoton() {
-  const b = ui.botonLoteria;
-  if (s.lugar) {
-    b.disabled = true;
-    b.textContent = `Ganaste: lugar ${s.lugar}`;
-  } else if (s.esperandoResultado) {
-    b.disabled = true;
-    b.textContent = 'Revisando tu tabla…';
-  } else {
-    b.disabled = !s.conectado || s.fase !== FASE.CANTANDO;
-    b.textContent = '¡Lotería!';
-  }
+  const { texto, deshabilitado } = textoBoton(s);
+  ui.botonLoteria.textContent = texto;
+  ui.botonLoteria.disabled = deshabilitado;
+  pintarInfo();
 }
 
-// Un solo reloj para las cuentas regresivas.
+// Un solo reloj para las cuentas regresivas. Sin conexión no avanza.
 setInterval(() => {
   if (!s.conectado) { pintarAvisoConexion(); return; }
   if (s.fase === FASE.ESPERA) pintarCuentaEspera();
-  else if (s.fase === FASE.TERMINADA) pintarCuentaFin();
+  else if (s.fase === FASE.TERMINADA) { pintarCuentaFin(); pintarEspectador(); }
+  else {
+    if (enGracia()) pintarCuentaGracia();
+    if (s.espectador) pintarEspectador();
+  }
 }, 250);
 
 conectar();
