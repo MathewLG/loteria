@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#E9DCBC">
+<title>Lotería</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<link rel="stylesheet" href="/css/estilos.css">
+<script type="module" src="/js/app.js"></script>
+</head>
+<body>
+<main class="juego">
+  <header class="barra">
+    <h1 class="marca">Lotería</h1>
+    <p class="sala-info" id="info-sala">Conectando…</p>
+  </header>
+
+  <div class="aviso-conexion" id="aviso-conexion" role="status" hidden>
+    <span id="aviso-texto"></span>
+    <button class="boton-sec" id="boton-reintentar" type="button">Reintentar ahora</button>
+  </div>
+
+  <section class="cantor" aria-label="Carta cantada">
+    <div class="cantor-carta" id="cantor-carta"></div>
+    <div class="cantor-texto">
+      <p class="cantor-etiqueta" id="cantor-etiqueta"></p>
+      <p class="cantor-nombre" id="cantor-nombre"></p>
+      <div class="barra-tiempo" aria-hidden="true"><span id="barra-tiempo"></span></div>
+      <p class="cantor-figura" id="cantor-figura" hidden>
+        <b>Pura llena.</b> <span id="conteo-frijoles"></span>
+      </p>
+    </div>
+  </section>
+
+  <p class="solo-lector" id="anuncio" aria-live="polite"></p>
+
+  <section class="tabla-zona" aria-label="Tu tabla">
+    <div class="tabla-cargando" id="tabla-cargando">Conectando con la sala…</div>
+    <div class="tabla" id="tabla" role="group" aria-label="Tu tabla: toca una carta que ya salió para ponerle un frijol" hidden></div>
+  </section>
+
+  <div class="pie" id="pie">
+    <p class="mensaje" id="mensaje" aria-live="polite"></p>
+    <button class="boton-grito" id="boton-loteria" type="button">¡Lotería!</button>
+  </div>
+
+  <section class="fin" id="panel-fin" aria-live="polite" hidden>
+    <h2 id="fin-titulo"></h2>
+    <p id="fin-resultado" class="fin-resultado"></p>
+    <div class="verificacion" id="fin-verificacion"></div>
+    <p class="fin-siguiente" id="fin-siguiente"></p>
+  </section>
+</main>
+</body>
+</html>

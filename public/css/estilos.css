@@ -1,0 +1,223 @@
+/* Lotería: grabado de feria a cuatro tintas.
+   Papel y tinta son la base; grana es el único acento de interfaz (el grito y el triunfo). */
+:root {
+  --papel: #F3E7CB;
+  --tinta: #1B1714;
+  --tinta-suave: #4A3F36;
+  --grana: #B8322A;
+  --grana-oscura: #9E2922;
+  --anil: #2F4F8F;
+  --cempa: #E3A21A;
+  --mantel: #E9DCBC;
+  --apagado: #CDBF9F;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  background: var(--mantel);
+  color: var(--tinta);
+  font-family: 'Atkinson Hyperlegible', system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+.juego {
+  max-width: 460px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.barra { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.marca { margin: 0; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 26px; line-height: 1; }
+.sala-info { margin: 0; font-size: 15px; }
+
+button { font: inherit; }
+button:focus-visible { outline: 3px solid var(--anil); outline-offset: 3px; }
+
+.boton-sec {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 2px solid var(--tinta);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tinta);
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+}
+.boton-sec:hover { background: var(--papel); }
+
+.aviso-conexion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 2px solid var(--tinta);
+  border-radius: 8px;
+  background: var(--papel);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+/* ---- Cantor ---- */
+.cantor { display: flex; gap: 16px; align-items: center; }
+.cantor-carta { width: 96px; flex-shrink: 0; aspect-ratio: 2 / 3; }
+.carta { display: block; width: 100%; height: auto; }
+.cantor-texto { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.cantor-etiqueta { margin: 0; font-size: 15px; color: var(--tinta-suave); }
+.cantor-nombre { margin: 0; font-family: 'Alfa Slab One', serif; font-size: 28px; line-height: 1.05; overflow-wrap: anywhere; }
+.barra-tiempo { height: 6px; border-radius: 3px; background: rgba(27, 23, 20, 0.15); overflow: hidden; }
+.barra-tiempo span { display: block; width: 100%; height: 100%; background: var(--tinta); transform-origin: left center; transform: scaleX(0); }
+@keyframes avance { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+.cantor-figura { margin: 2px 0 0; font-size: 15px; line-height: 1.35; }
+
+/* ---- Tabla ---- */
+.tabla {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--tinta);
+}
+.casilla {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  aspect-ratio: 2 / 3;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Sobre el tablero negro, el añil no contrasta: el foco va en cempasúchil. */
+.casilla:focus-visible { outline: 3px solid var(--cempa); outline-offset: 2px; }
+
+.tabla-cargando {
+  padding: 48px 16px;
+  border: 2px dashed var(--tinta-suave);
+  border-radius: 10px;
+  text-align: center;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+/* ---- Frijol ---- */
+.frijol {
+  position: absolute;
+  width: 46%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.frijol-cuerpo, .frijol-giro { display: block; position: relative; }
+.frijol svg { display: block; width: 100%; height: auto; }
+.frijol-sombra {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: -10%;
+  height: 34%;
+  border-radius: 50%;
+  background: var(--tinta);
+  opacity: 0.3;
+}
+.cae .frijol-cuerpo { animation: caer 420ms cubic-bezier(.3, .7, .4, 1) both; }
+.cae .frijol-sombra { animation: sombra 420ms ease-out both; }
+@keyframes caer {
+  0% { transform: translateY(-70px) rotate(-150deg) scale(1.35); opacity: 0; }
+  35% { opacity: 1; }
+  62% { transform: translateY(0) rotate(0) scale(1.08, 0.86); }
+  80% { transform: translateY(-5px) scale(0.98, 1.04); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes sombra {
+  0% { transform: scale(0.3); opacity: 0; }
+  62% { transform: scale(1.1); opacity: 0.38; }
+  100% { transform: scale(1); opacity: 0.3; }
+}
+
+.sacude { animation: sacudir 320ms ease-out; }
+@keyframes sacudir {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+.entra { animation: entra 380ms cubic-bezier(.2, .8, .3, 1); }
+@keyframes entra {
+  from { transform: translateY(-16px) rotate(-7deg); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+/* ---- Pie ---- */
+.pie { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
+.mensaje { margin: 0; min-height: 22px; text-align: center; font-size: 16px; line-height: 1.35; color: var(--tinta-suave); }
+.mensaje.gano {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--grana);
+  color: var(--papel);
+  font-family: 'Alfa Slab One', serif;
+  font-size: 20px;
+}
+.boton-grito {
+  min-height: 56px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--grana);
+  color: var(--papel);
+  font-family: 'Alfa Slab One', serif;
+  font-size: 24px;
+  cursor: pointer;
+}
+.boton-grito:hover { background: var(--grana-oscura); }
+.boton-grito:disabled { background: var(--apagado); color: var(--tinta); cursor: default; }
+
+/* ---- Fin de ronda ---- */
+.fin {
+  margin-top: auto;
+  padding: 16px;
+  border: 2px solid var(--tinta);
+  border-radius: 10px;
+  background: var(--papel);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.fin h2 { margin: 0; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 22px; }
+.fin p { margin: 0; line-height: 1.4; }
+.fin-resultado { font-size: 17px; }
+.fin-siguiente { color: var(--tinta-suave); font-size: 15px; }
+.verificacion { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; line-height: 1.4; }
+.verificacion p { margin: 0; }
+.sello { flex-shrink: 0; width: 28px; height: 28px; }
+/* La huella es un dato técnico que alguien podría querer copiar: va en monoespaciada. */
+.huella { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; }
+
+.solo-lector {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cae .frijol-cuerpo { animation: aparece 150ms ease-out both; }
+  .cae .frijol-sombra, .sacude, .entra { animation: none; }
+}
+@keyframes aparece { from { opacity: 0; } to { opacity: 1; } }

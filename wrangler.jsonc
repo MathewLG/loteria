@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "loteria",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-11-01",
+  "assets": { "directory": "./public" },
+  "durable_objects": {
+    "bindings": [{ "name": "SALA", "class_name": "Sala" }]
+  },
+  // El plan gratuito solo admite Durable Objects con almacenamiento SQLite.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Sala"] }],
+  "vars": {
+    "ESPERA_MS": "10000",
+    "CARTA_MS": "6000",
+    "FIN_MS": "12000"
+  }
+}

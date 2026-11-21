@@ -1,0 +1,22 @@
+{
+  "name": "loteria",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "dev:telefono": "wrangler dev --ip 0.0.0.0",
+    "dev:bun": "bun dev/servidor-bun.ts",
+    "bots": "node scripts/bots.mjs",
+    "test": "node --test \"test/*.test.ts\"",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.0.0"
+  }
+}
