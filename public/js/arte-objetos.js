@@ -56,16 +56,17 @@ export const OBJETOS = {
   }),
 
   // 11 · El Melón
-  11: grabado(({ forma, linea, tinta, trazo }) => {
-    forma('M100 92 C106 82 116 78 124 80 C118 88 110 92 100 92 Z', T.nopal);
-    linea('M94 90 C94 82 98 76 104 72', 4);
-    forma(circ(94, 142, 54), T.nopal);
-    linea('M50 118 C70 132 70 160 52 172 M72 92 C88 118 88 168 70 194 M110 90 C100 118 102 168 116 194 M136 112 C120 132 120 160 138 176', 1.8);
-    linea('M44 142 L144 142 M52 112 L136 112 M52 172 L136 172', 1.8);
-    forma('M74 212 C104 232 156 226 176 186 Z', T.cempa);
-    trazo('M74 212 C104 232 156 226 176 186', T.nopal, 7);
-    linea('M74 212 C104 232 156 226 176 186');
-    tinta(elipse(110, 214, 2.2, 3.5) + ' ' + elipse(130, 210, 2.2, 3.5) + ' ' + elipse(150, 202, 2.2, 3.5) + ' ' + elipse(96, 212, 2, 3));
+  // Un solo melón cantalupo: la mitad cortada sale del entero que está detrás.
+  11: grabado(({ forma, linea, tinta, tapa }) => {
+    forma('M88 76 C94 66 104 62 112 64 C106 72 98 76 88 76 Z', T.nopal);
+    linea('M84 80 C84 72 88 66 94 62', 4);
+    forma(circ(86, 128, 50), T.piedra);
+    linea('M86 78 C62 96 58 156 80 178 M86 78 C76 100 74 156 86 178 M86 78 C98 100 100 156 90 178 M86 78 C112 96 118 150 100 176', 2);
+    linea('M50 110 l4 4 m6 -2 l-4 4 M62 136 l4 4 m6 -2 l-4 4 M108 112 l4 4 m6 -2 l-4 4 M116 140 l4 4 m6 -2 l-4 4 M70 160 l4 4', 1.6);
+    tapa(elipse(112, 194, 58, 30), T.piedra);
+    tapa(elipse(112, 194, 50, 24), T.cempa);
+    tapa(elipse(112, 194, 24, 11), T.hueso);
+    tinta(elipse(100, 193, 2.2, 3.4) + ' ' + elipse(108, 196, 2.2, 3.4) + ' ' + elipse(116, 192, 2.2, 3.4) + ' ' + elipse(124, 196, 2.2, 3.4));
   }),
 
   // 13 · El Gorrito
@@ -91,13 +92,36 @@ export const OBJETOS = {
   }),
 
   // 16 · La Bandera
-  16: grabado(({ forma, linea, hueso }) => {
-    hueso('M50 238 L50 48', 8, T.cempa);
-    forma(circ(50, 42, 6), T.cempa);
-    forma('M52 56 C64 52 78 52 91 56 L91 146 C78 142 64 142 52 146 Z', T.nopal);
-    forma('M91 56 C104 60 117 60 130 56 L130 146 C117 150 104 150 91 146 Z', T.hueso);
-    forma('M130 56 C143 52 157 52 170 56 L170 146 C157 142 143 142 130 146 Z', T.grana);
-    linea('M70 70 L70 132 M150 70 L150 132', 2);
+  // Sin el Escudo Nacional: su uso está restringido por la Ley sobre el Escudo, la Bandera
+  // y el Himno Nacionales. La carta se lee mexicana por el contexto: la bandera ondea sobre
+  // un kiosco de plaza, con papel picado tricolor; un pliegue cruza el centro del lienzo.
+  16: grabado(({ forma, linea, hueso, tinta, color }) => {
+    linea('M58 44 L184 44', 2);
+    forma('M60 44 L78 44 L78 62 L75 66 L72 62 L69 66 L66 62 L63 66 L60 62 Z', T.grana);
+    linea('M66 50 L72 50 M69 54 L69 58', 1.8);
+    forma('M80 44 L98 44 L98 62 L95 66 L92 62 L89 66 L86 62 L83 66 L80 62 Z', T.cempa);
+    linea('M86 50 L92 50 M89 54 L89 58', 1.8);
+    forma('M100 44 L118 44 L118 62 L115 66 L112 62 L109 66 L106 62 L103 66 L100 62 Z', T.nopal);
+    linea('M106 50 L112 50 M109 54 L109 58', 1.8);
+    forma('M120 44 L138 44 L138 62 L135 66 L132 62 L129 66 L126 62 L123 66 L120 62 Z', T.anil);
+    linea('M126 50 L132 50 M129 54 L129 58', 1.8);
+    forma('M140 44 L158 44 L158 62 L155 66 L152 62 L149 66 L146 62 L143 66 L140 62 Z', T.hueso);
+    linea('M146 50 L152 50 M149 54 L149 58', 1.8);
+    forma('M160 44 L178 44 L178 62 L175 66 L172 62 L169 66 L166 62 L163 66 L160 62 Z', T.grana);
+    linea('M166 50 L172 50 M169 54 L169 58', 1.8);
+    hueso('M44 236 L44 80', 8, T.cempa);
+    forma('M38 82 L44 66 L50 82 Z', T.cempa);
+    forma('M47 86 C64 80 78 82 90 88 L90 146 C78 140 64 138 47 144 Z', T.nopal);
+    forma('M90 88 C100 94 110 96 122 94 L122 150 C110 152 100 150 90 146 Z', T.hueso);
+    forma('M122 94 C136 90 150 90 164 94 L164 152 C150 148 136 148 122 150 Z', T.grana);
+    color('M98 92 C104 110 104 130 98 148 L112 150 C116 130 116 110 112 95 Z', T.piedra);
+    linea('M98 92 C104 110 104 130 98 148 M112 95 C116 110 116 130 112 150', 2);
+    linea('M64 96 L64 136 M146 98 L146 140', 2);
+    forma('M118 168 C132 176 150 184 162 194 L74 194 C86 184 104 176 118 168 Z', T.grana);
+    forma(circ(118, 164, 4), T.cempa);
+    linea('M84 194 L84 222 M104 194 L104 222 M132 194 L132 222 M152 194 L152 222', 3);
+    linea('M80 208 L156 208', 2);
+    forma('M70 222 L166 222 L166 232 L70 232 Z', T.piedra);
   }),
 
   // 17 · El Bandolón
@@ -110,7 +134,7 @@ export const OBJETOS = {
     linea(circ(100, 160, 15), 2.5);
     tinta(circ(100, 160, 10));
     linea('M86 204 L114 204', 4);
-    linea('M96 204 L97 36 M100 204 L100 36 M104 204 L103 36', 1.3);
+    linea('M96 204 L97 36 M100 204 L100 36 M104 204 L103 36', 2);
     linea('M64 150 C60 170 64 196 76 210', 2);
   }, 'rotate(-18 100 140)'),
 
@@ -201,16 +225,17 @@ export const OBJETOS = {
   // 48 · La Chalupa
   48: grabado(({ forma, linea, hueso }) => {
     forma('M18 206 C40 198 60 214 82 206 C104 198 124 214 146 206 C160 200 172 204 182 206 L182 238 L18 238 Z', T.anil);
-    hueso('M150 96 L118 226', 6, T.madera);
-    forma(elipse(114, 228, 7, 12), T.madera);
-    forma('M56 178 C54 164 66 158 76 162 C80 150 98 150 102 162 C110 152 128 154 130 168 C140 166 148 174 144 184 L56 186 Z', T.nopal);
-    forma(circ(74, 166, 10), T.grana);
-    forma(circ(96, 160, 11), T.cempa);
-    forma(circ(118, 166, 10), T.hueso);
-    forma(circ(136, 176, 8), T.grana);
-    forma(circ(62, 178, 7), T.cempa);
-    forma('M28 182 C60 198 140 198 172 182 L160 208 C130 216 70 216 40 208 Z', T.madera);
-    linea('M44 196 C80 206 120 206 156 196', 2);
+    forma('M50 178 C48 164 60 158 70 162 C74 150 92 150 96 162 C104 152 122 154 124 168 C134 166 142 174 138 184 L50 186 Z', T.nopal);
+    forma(circ(68, 166, 10), T.grana);
+    forma(circ(90, 160, 11), T.cempa);
+    forma(circ(112, 166, 10), T.hueso);
+    forma(circ(130, 176, 8), T.grana);
+    forma(circ(56, 178, 7), T.cempa);
+    forma('M22 182 C52 196 128 196 156 182 L146 206 C118 214 62 214 34 206 Z', T.madera);
+    linea('M38 196 C70 206 110 206 148 196', 2);
+    // El remo entra al agua por fuera de la proa, sin cruzar la canoa.
+    hueso('M176 100 L168 216', 6, T.madera);
+    forma(elipse(167, 222, 6, 12), T.madera);
   }),
 
   // 49 · El Pino
@@ -238,7 +263,7 @@ export const OBJETOS = {
   // 53 · El Arpa
   53: grabado(({ forma, linea }) => {
     forma('M158 70 L170 76 L76 228 L62 222 Z', T.cempa);
-    linea('M74 72 L74 217 M86 64 L86 198 M98 64 L98 179 M110 70 L110 159 M122 76 L122 140 M134 80 L134 121 M146 80 L146 102', 1.4);
+    linea('M74 72 L74 217 M86 64 L86 198 M98 64 L98 179 M110 70 L110 159 M122 76 L122 140 M134 80 L134 121 M146 80 L146 102', 2.2);
     forma('M52 224 L62 224 L66 70 L56 70 Z', T.madera);
     forma('M56 70 C70 52 96 56 116 70 C134 82 150 76 160 64 L166 74 C152 92 130 92 112 80 C94 68 72 66 62 78 Z', T.madera);
     linea('M44 230 L84 230', 4);

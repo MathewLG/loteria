@@ -278,13 +278,63 @@ function marco(numero, nombre) {
 <text x="100" y="275" text-anchor="middle" font-family="'Alfa Slab One', serif" font-size="${nombre.length > 12 ? 16 : 20}" fill="${TINTA}">${nombre}</text>`;
 }
 
+/**
+ * Marco para cartas pintadas chicas (la tabla, unos 80 px de ancho).
+ * El nombre sube a 28 unidades (unos 11 px reales a 80 px) y el número a 22;
+ * los nombres largos se ajustan al ancho con textLength en lugar de encogerse.
+ */
+function marcoCompacto(numero, nombre) {
+  const ajuste = nombre.length > 10 ? ' textLength="168" lengthAdjust="spacingAndGlyphs"' : '';
+  return `<rect x="12" y="12" width="176" height="276" rx="3" fill="none" stroke="${TINTA}" stroke-width="1.5"/>
+<path d="M12 12 L64 12 L12 64 Z M188 12 L180 12 L188 20 Z" fill="${TINTA}"/>
+<text x="16" y="36" font-family="'Alfa Slab One', serif" font-size="22" fill="#F3E7CB">${numero}</text>
+<rect x="12" y="232" width="176" height="56" fill="#F3E7CB"/>
+<path d="M12 232 L188 232" stroke="${TINTA}" stroke-width="3"/>
+<path d="M188 288 L180 288 L188 280 Z M12 288 L20 288 L12 280 Z" fill="${TINTA}"/>
+<text x="100" y="271" text-anchor="middle" font-family="'Alfa Slab One', serif" font-size="28"${ajuste} fill="${TINTA}">${nombre}</text>`;
+}
+
+/**
+ * Reencuadre por carta: lleva el dibujo a la caja común (x 22-178, y 40-236),
+ * con el sujeto entre 70% y 85% del alto. Escala y mueve sin redibujar.
+ * [escala, centro x, centro y, destino x, destino y]
+ */
+const ENCUADRE = {
+  6: [1.18, 100, 170, 100, 150],
+  14: [1.08, 100, 140, 100, 136],
+  20: [1.25, 104, 148, 100, 138],
+  28: [1.2, 100, 165, 100, 138],
+  47: [1.12, 100, 145, 100, 140],
+  50: [1.15, 104, 152, 100, 140],
+};
+
+const recorte = (id) => `<clipPath id="${id}"><rect x="12" y="12" width="176" height="234"/></clipPath>`;
+let contador = 0;
+
+function arte(n, compacta) {
+  const dibujo = ARTE[n] ?? PENDIENTE(n);
+  const e = ENCUADRE[n];
+  let t = e ? `translate(${e[3]} ${e[4]}) scale(${e[0]}) translate(${-e[1]} ${-e[2]})` : '';
+  // En la variante compacta el dibujo baja un poco de tamaño para dejar sitio a la banda del nombre.
+  if (compacta) t = `translate(10 4) scale(0.9) ${t}`;
+  const id = `marco-${n}-${contador++}`;
+  // El recorte va en un grupo sin transformar, para que corte en coordenadas de la carta.
+  const interior = t ? `<g transform="${t.trim()}">${dibujo}</g>` : dibujo;
+  return `<defs>${recorte(id)}</defs><g clip-path="url(#${id})">${interior}</g>`;
+}
+
 const PENDIENTE = (n) => `<text x="102.5" y="160" text-anchor="middle" font-family="'Alfa Slab One', serif" font-size="72" fill="#E3A21A">${n}</text>
 <text x="100" y="158" text-anchor="middle" font-family="'Alfa Slab One', serif" font-size="72" fill="none" stroke="${TINTA}" stroke-width="3">${n}</text>
 <text x="100" y="196" text-anchor="middle" font-family="'Atkinson Hyperlegible', sans-serif" font-size="15" fill="#4A3F36">arte pendiente</text>`;
 
-/** SVG completo de una carta, sin texto accesible: quien lo usa pone su propia etiqueta. */
-export function svgCarta(n) {
-  return `<svg class="carta" viewBox="0 0 200 300" aria-hidden="true" focusable="false">${BASE}${ARTE[n] ?? PENDIENTE(n)}${marco(n, NOMBRES[n - 1].toUpperCase())}</svg>`;
+/**
+ * SVG completo de una carta, sin texto accesible: quien lo usa pone su propia etiqueta.
+ * Opciones: { compacta: true } para pintarla chica (tabla), con nombre y número más grandes.
+ */
+export function svgCarta(n, opciones = {}) {
+  const nombre = NOMBRES[n - 1].toUpperCase();
+  const compacta = !!opciones.compacta;
+  return `<svg class="carta" viewBox="0 0 200 300" aria-hidden="true" focusable="false">${BASE}${arte(n, compacta)}${compacta ? marcoCompacto(n, nombre) : marco(n, nombre)}</svg>`;
 }
 
 /** Reverso para la espera entre rondas: muestra la cuenta regresiva. */
