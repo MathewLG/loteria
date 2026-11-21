@@ -87,9 +87,6 @@ export class Sala extends DurableObject<Env> {
   }
 
   async fetch(peticion: Request): Promise<Response> {
-    if (peticion.headers.get('Upgrade') !== 'websocket') {
-      return new Response('Se esperaba una conexión WebSocket', { status: 426 });
-    }
     const url = new URL(peticion.url);
     const token = url.searchParams.get('t') ?? '';
     if (!TOKEN_VALIDO.test(token)) return new Response('Token inválido', { status: 400 });
@@ -104,6 +101,12 @@ export class Sala extends DurableObject<Env> {
           'Retry-After': String(Math.ceil(rechazo.reintentarEnMs / 1000)),
         },
       });
+    }
+
+    // La admisión va antes de exigir WebSocket: el cliente consulta /ws con fetch
+    // para leer el 503 de sala llena, que un WebSocket fallido no deja ver.
+    if (peticion.headers.get('Upgrade') !== 'websocket') {
+      return new Response(null, { status: 204 });
     }
 
     const par = new WebSocketPair();
