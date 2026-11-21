@@ -1,3 +1,7 @@
+import { PERSONAS } from './arte-personas.js';
+import { ANIMALES } from './arte-animales.js';
+import { OBJETOS } from './arte-objetos.js';
+
 // Arte original de las cartas: grabado a cuatro tintas,
 // con el color impreso 2.5 px fuera de la línea (registro corrido).
 
@@ -13,7 +17,7 @@ export const NOMBRES = [
   'El Pino', 'El Pescado', 'La Palma', 'La Maceta', 'El Arpa', 'La Rana',
 ];
 
-/** Cartas que ya tienen arte. Las demás se ven con su número y "arte pendiente". */
+/** Arte de cada carta. Las que no tengan se ven con su número y "arte pendiente". */
 const TINTA = '#1B1714';
 const LINEA = `fill="none" stroke="${TINTA}" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"`;
 const rayos = (cierre) => Array.from({ length: 12 }, (_, i) =>
@@ -258,6 +262,8 @@ const ARTE = {
 <path d="M76 196 L82 190 L88 196 L94 190 L100 196 L106 190 L112 196 L118 190 L124 196" stroke-width="3"/>
 </g>`,
 };
+
+Object.assign(ARTE, PERSONAS, ANIMALES, OBJETOS);
 
 const BASE = `<rect x="1" y="1" width="198" height="298" rx="10" fill="${TINTA}"/>
 <rect x="7" y="7" width="186" height="286" rx="5" fill="#F3E7CB"/>`;

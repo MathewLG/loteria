@@ -7,7 +7,7 @@
       "ES2022"
     ],
     "types": [
-      "@types/node"
+      "node"
     ],
     "strict": true,
     "allowJs": true,
