@@ -116,8 +116,8 @@ Criterios de aceptación:
 - No se pide correo, teléfono ni ubicación.
 
 Tareas:
-- [ ] T-04.1 Generador de apodos con listas propias de sustantivos y adjetivos (S)
-- [ ] T-04.2 Mostrar y regenerar el apodo en la interfaz (S)
+- [x] T-04.1 Generador de apodos con listas propias de sustantivos y adjetivos (S)
+- [x] T-04.2 Mostrar y regenerar el apodo en la interfaz (S)
 - [ ] T-04.3 Mandar el apodo en el resultado de ganador para el ranking (S)
 
 ### HU-05 · Elegir tabla · RF-02
@@ -130,9 +130,9 @@ Criterios de aceptación:
 - No se puede cambiar de tabla una vez que empieza a cantar.
 
 Tareas:
-- [ ] T-05.1 Motor: ofrecer 3 tablas y aceptar el mensaje ELIJO durante la espera (M)
-- [ ] T-05.2 Protocolo: mensaje ELIJO y pruebas (S)
-- [ ] T-05.3 Interfaz de selección con las tres tablas en miniatura (M)
+- [x] T-05.1 Motor: ofrecer 3 tablas y aceptar el mensaje ELIJO durante la espera (M)
+- [x] T-05.2 Protocolo: mensaje ELIJO y pruebas (S)
+- [x] T-05.3 Interfaz de selección con las tres tablas en miniatura (M)
 
 ### HU-06 · Versos del cantor · RF-03
 
@@ -143,8 +143,8 @@ Criterios de aceptación:
 - El verso aparece junto a la carta cantada y lo lee el lector de pantalla.
 
 Tareas:
-- [ ] T-06.1 Escribir los 54 versos originales (M)
-- [ ] T-06.2 Mostrar el verso en el cantor (S)
+- [x] T-06.1 Escribir los 54 versos originales (M)
+- [x] T-06.2 Mostrar el verso en el cantor (S)
 
 ### HU-07 · Historial de la ronda · RF-09
 
@@ -155,8 +155,8 @@ Criterios de aceptación:
 - Funciona con teclado y lector de pantalla.
 
 Tareas:
-- [ ] T-07.1 Panel desplegable con miniaturas (M)
-- [ ] T-07.2 Resaltar en el historial las cartas que están en mi tabla (S)
+- [x] T-07.1 Panel desplegable con miniaturas (M)
+- [x] T-07.2 Resaltar en el historial las cartas que están en mi tabla (S)
 
 ### HU-08 · Llegar a mitad de ronda · RF-07
 
@@ -167,8 +167,8 @@ Criterios de aceptación:
 - Al empezar la siguiente ronda recibe su tabla y juega normal.
 
 Tareas:
-- [ ] T-08.1 Motor: marcar como espectador a quien conecta con la ronda en canto (S)
-- [ ] T-08.2 Interfaz de espectador con cuenta regresiva a la siguiente ronda (S)
+- [x] T-08.1 Motor: marcar como espectador a quien conecta con la ronda en canto (S)
+- [x] T-08.2 Interfaz de espectador con cuenta regresiva a la siguiente ronda (S)
 
 ### HU-09 · Sala llena en lugar de caída · RF-16, RNF-06, RNF-13
 
@@ -179,9 +179,9 @@ Criterios de aceptación:
 - Si la cuota diaria llega a 90%, se cierran entradas nuevas hasta el reinicio de las 18:00 de Guadalajara; los jugadores conectados terminan.
 
 Tareas:
-- [ ] T-09.1 Cupo configurable en la sala (S)
-- [ ] T-09.2 Página estática de sala llena (S)
-- [ ] T-09.3 Contador de solicitudes del día y cierre al 90% (M)
+- [x] T-09.1 Cupo configurable en la sala (S)
+- [x] T-09.2 Página estática de sala llena (S)
+- [x] T-09.3 Contador de solicitudes del día y cierre al 90% (M)
 
 ### HU-10 · Rondas verificables después · RF-11, RNF-14
 
@@ -192,8 +192,8 @@ Criterios de aceptación:
 - Una página pública recibe el número de ronda y repite la verificación en el navegador.
 
 Tareas:
-- [ ] T-10.1 Escribir el registro de la ronda en R2 al terminar (M)
-- [ ] T-10.2 Página de verificación (M)
+- [x] T-10.1 Escribir el registro de la ronda en R2 al terminar (M)
+- [x] T-10.2 Página de verificación (M)
 
 ### HU-11 · Instalable y rápida · RF-14, RNF-07, RNF-08
 
@@ -322,6 +322,13 @@ Tareas:
 - [ ] T-22.1 Artículo con arquitectura, costos medidos y resultados de carga (M)
 
 ---
+
+## Avance
+
+- **Fase 1:** historias HU-05 a HU-10 terminadas y revisadas por QA y UI/UX. Pendientes: HU-04 T-04.3 (apodo en el ranking) y HU-11 (PWA, espera la aprobación del icono).
+- **Fase 0:** prueba de carga local hecha (`docs/pruebas-de-carga.md`). Pendientes que dependen del dueño del repo: protección de `main`, `package-lock.json`, cuenta y secretos de Cloudflare.
+- **Hallazgo de la prueba de carga:** tiempo de gracia de 10 s después de la última carta (#39).
+- **Hallazgo de costo:** sin escrituras por jugador; pase firmado para reconexión (#57).
 
 ## Ya hecho antes de este plan
 
