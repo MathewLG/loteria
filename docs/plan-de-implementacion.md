@@ -65,8 +65,8 @@ Criterios de aceptación:
 Tareas:
 - [x] T-01.1 Workflow de CI: pruebas unitarias y tipos (S)
 - [x] T-01.2 Workflow de despliegue con `wrangler-action`, que se salta si faltan secretos (S)
-- [ ] T-01.3 Protección de `main`: PR obligatorio, checks requeridos, historial lineal, sin push forzado (S)
-- [ ] T-01.4 Generar y subir `package-lock.json`; cambiar CI a `npm ci` (S)
+- [x] T-01.3 Protección de `main`: PR obligatorio, checks requeridos, historial lineal, sin push forzado (S)
+- [x] T-01.4 Generar y subir `package-lock.json`; cambiar CI a `npm ci` (S)
 - [ ] T-01.5 Crear cuenta de Cloudflare, token con permiso de Workers y secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID` (S)
 - [x] T-01.6 Plantillas de issue (historia, error) y de PR con la definición de terminado (S)
 
@@ -326,7 +326,7 @@ Tareas:
 ## Avance
 
 - **Fase 1:** historias HU-05 a HU-10 terminadas y revisadas por QA y UI/UX. Pendientes: HU-04 T-04.3 (apodo en el ranking) y HU-11 (PWA, espera la aprobación del icono).
-- **Fase 0:** prueba de carga local hecha (`docs/pruebas-de-carga.md`). Pendientes que dependen del dueño del repo: protección de `main`, `package-lock.json`, cuenta y secretos de Cloudflare.
+- **Fase 0:** prueba de carga local hecha (`docs/pruebas-de-carga.md`). `main` protegida y `package-lock.json` fijado. Pendiente que depende del dueño del repo: cuenta y secretos de Cloudflare.
 - **Hallazgo de la prueba de carga:** tiempo de gracia de 10 s después de la última carta (#39).
 - **Hallazgo de costo:** sin escrituras por jugador; pase firmado para reconexión (#57).
 
