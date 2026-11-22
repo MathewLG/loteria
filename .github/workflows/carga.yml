@@ -1,0 +1,51 @@
+name: Prueba de carga
+
+# Solo a mano: cada conexión gasta una solicitud de la cuota gratuita diaria (100,000).
+on:
+  workflow_dispatch:
+    inputs:
+      clientes:
+        description: Número de clientes simulados
+        default: '1000'
+      escenario:
+        description: entrada, reconexion o cupo
+        default: entrada
+      url:
+        description: Dirección de la sala
+        default: wss://loteria.mathewlopezg.workers.dev/ws
+      duracion_s:
+        description: Tope de tiempo en segundos
+        default: '900'
+
+jobs:
+  carga:
+    name: Prueba de carga contra Cloudflare
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Correr la prueba
+        run: |
+          ulimit -n 20000
+          node scripts/carga.mjs "${{ inputs.clientes }}" \
+            --escenario="${{ inputs.escenario }}" \
+            --url="${{ inputs.url }}" \
+            --duracion-s="${{ inputs.duracion_s }}" \
+            --salida=carga.json | tee salida.txt
+      - name: Resumen
+        if: always()
+        run: |
+          echo '## Prueba de carga' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -n 60 salida.txt >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: carga-${{ inputs.escenario }}-${{ inputs.clientes }}
+          path: |
+            carga.json
+            salida.txt
