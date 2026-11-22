@@ -6,6 +6,8 @@ import { NOMBRES, SVG_FRIJOL, svgCarta, svgReverso } from './cartas.js';
 import { RACHA_VACIA, registrarToque } from './frijoles.js';
 import { VERSOS } from './versos.js';
 import { generarApodo } from './apodos.js';
+import { agacharMusica, sonar } from './audio.js';
+import './menu-audio.js';
 import { claveDeRonda, verificarRonda } from './verificacion.js';
 import { duracionAproximada, msHastaSiguienteRonda, textoBoton } from './estado-ui.js';
 
@@ -252,6 +254,8 @@ function manejar(m) {
       s.limite = Date.now() + m.msSiguiente;
       ui.eleccion.hidden = true;
       anunciar(`Salió ${NOMBRES[m.carta - 1]}. ${VERSOS[m.carta - 1] ?? ''}`);
+      agacharMusica();
+      sonar('carta');
       pintarCantor(true);
       pintarInerte();
       pintarInfo();
@@ -270,9 +274,11 @@ function manejar(m) {
       if (m.ok) {
         s.lugar = m.lugar;
         decir(`¡Lotería! Llegaste en el lugar ${m.lugar}.`, true);
+        sonar('ganar');
       } else if (m.motivo === MOTIVO.DESCALIFICADO) {
         s.descalificado = true;
         sacudir(ui.botonLoteria);
+        sonar('falsa');
         decir('¡Te equivocaste! Quedas fuera de esta ronda; juega la siguiente.');
         anunciar('Falsa lotería: tu carta no estaba llena. Quedas fuera de esta ronda.');
       } else if (m.motivo === MOTIVO.MUY_SEGUIDO) {
@@ -435,6 +441,7 @@ function tirarFrijoles() {
     f.classList.add('vuela');
     f.addEventListener('animationend', () => f.remove(), { once: true });
   });
+  sonar('tirar');
   s.marcadas = 0;
   [...ui.tabla.children].forEach((b, i) => etiquetarCasilla(b, i));
   guardarMarcas();
@@ -449,6 +456,7 @@ function tocar(i) {
   const bit = 1 << i;
   if (s.fase === FASE.ESPERA) {
     sacudir(boton);
+    sonar('error');
     decir('Espera a que salga la primera carta.');
     return;
   }
@@ -466,10 +474,12 @@ function tocar(i) {
   if (s.marcadas & bit) {
     s.marcadas &= ~bit;
     boton.querySelector('.frijol')?.remove();
+    sonar('quitar');
     decir(`Quitaste el frijol de ${nombre}.`);
   } else {
     s.marcadas |= bit;
     ponerFrijol(boton, i, true);
+    sonar('frijol');
     decir('');
   }
   etiquetarCasilla(boton, i);
