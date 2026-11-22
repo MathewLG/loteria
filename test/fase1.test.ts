@@ -1,7 +1,7 @@
 // Fase 1 del motor: elegir tabla, espectadores, cupo, cuota diaria y registro de rondas.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Motor, type Adjunto, type Conexion, type Config, type Entorno, type RegistroRonda } from '../src/motor.ts';
+import { Motor, type Adjunto, type Conexion, type Config, type Entorno, type Reanudar, type RegistroRonda } from '../src/motor.ts';
 import {
   FASE, MOTIVO, T, codificarElijo, codificarEstado, codificarLoteria, decodificar, mascaraCantadas,
 } from '../public/js/protocolo.js';
@@ -29,6 +29,7 @@ function crearSala(extra: Partial<Config> = {}, catalogo = 54) {
     leer: async (k) => structuredClone(almacen.get(k)) as any,
     escribir: async (k, v) => { almacen.set(k, structuredClone(v)); },
     borrarPrefijo: async (p) => { for (const k of [...almacen.keys()]) if (k.startsWith(p)) almacen.delete(k); },
+    leerPrefijo: async (p) => new Map([...almacen].filter(([k]) => k.startsWith(p)).map(([k, v]) => [k, structuredClone(v)])) as any,
     ahora: () => reloj,
     aleatorio: (n) => new Uint8Array(n).fill(9),
     guardarRonda: async (r) => { registros.push(r); },
@@ -39,10 +40,10 @@ function crearSala(extra: Partial<Config> = {}, catalogo = 54) {
     almacen,
     registros,
     conexiones,
-    async entra(token: string, rondaPrevia = 0) {
+    async entra(token: string, reanudar?: Reanudar) {
       const c = new ConexionFalsa();
       conexiones.push(c);
-      await motor.conectar(c, token, rondaPrevia);
+      await motor.conectar(c, token, reanudar);
       return c;
     },
     sale(c: ConexionFalsa) { conexiones.splice(conexiones.indexOf(c), 1); },
@@ -88,9 +89,12 @@ test('ELIJO en la espera cambia la tabla y se confirma con ELECCION', async () =
   const a = await sala.entra(TOKEN_A);
   const ronda = a.ultimo(T.ESTADO).ronda;
   await sala.motor.mensaje(a, codificarElijo(ronda, 2));
-  assert.deepEqual(a.ultimo(T.ELECCION), { tipo: T.ELECCION, ok: true, indice: 2 });
+  const el = a.ultimo(T.ELECCION);
+  assert.equal(el.ok, true);
+  assert.equal(el.indice, 2);
+  assert.ok(el.pase, 'la elección trae el pase nuevo');
   assert.equal(a.adjunto()!.elegida, 2);
-  assert.equal(sala.almacen.get(`tabla:${ronda}:${TOKEN_A}`), 2);
+  assert.ok(![...sala.almacen.keys()].some((k) => k.includes(TOKEN_A)), 'no se guarda nada por jugador');
 });
 
 test('ELIJO inválido se rechaza y conserva la elección anterior', async () => {
@@ -99,12 +103,14 @@ test('ELIJO inválido se rechaza y conserva la elección anterior', async () => 
   const ronda = a.ultimo(T.ESTADO).ronda;
   await sala.motor.mensaje(a, codificarElijo(ronda, 1));
   await sala.motor.mensaje(a, codificarElijo(ronda, 3));
-  assert.deepEqual(a.ultimo(T.ELECCION), { tipo: T.ELECCION, ok: false, indice: 1 });
+  assert.equal(a.ultimo(T.ELECCION).ok, false);
+  assert.equal(a.ultimo(T.ELECCION).indice, 1);
   await sala.motor.mensaje(a, codificarElijo(ronda + 1, 0));
   assert.equal(a.ultimo(T.ELECCION).ok, false);
   await sala.tic(); // empieza a cantar
   await sala.motor.mensaje(a, codificarElijo(ronda, 0));
-  assert.deepEqual(a.ultimo(T.ELECCION), { tipo: T.ELECCION, ok: false, indice: 1 });
+  assert.equal(a.ultimo(T.ELECCION).ok, false);
+  assert.equal(a.ultimo(T.ELECCION).indice, 1);
   assert.equal(a.adjunto()!.elegida, 1);
 });
 
@@ -113,8 +119,9 @@ test('al cantar, ESTADO trae solo la tabla elegida', async () => {
   const a = await sala.entra(TOKEN_A);
   const ronda = a.ultimo(T.ESTADO).ronda;
   await sala.motor.mensaje(a, codificarElijo(ronda, 1));
+  const pase = aHex(a.ultimo(T.ELECCION).pase);
   await sala.tic();
-  const otra = await sala.entra(TOKEN_A, ronda);
+  const otra = await sala.entra(TOKEN_A, { ronda, elegida: 1, pase });
   const e = otra.ultimo(T.ESTADO);
   assert.equal(e.fase, FASE.CANTANDO);
   assert.equal(e.tablas.length, 1);
@@ -122,14 +129,15 @@ test('al cantar, ESTADO trae solo la tabla elegida', async () => {
   assert.deepEqual(e.tabla, tablaDe(TOKEN_A, ronda, 54, 1));
 });
 
-test('al reconectar se conserva la tabla elegida aunque no mande la ronda previa', async () => {
+test('al reconectar durante el canto con su pase se conserva la tabla elegida', async () => {
   const sala = crearSala();
   const a = await sala.entra(TOKEN_A);
   const ronda = a.ultimo(T.ESTADO).ronda;
   await sala.motor.mensaje(a, codificarElijo(ronda, 2));
+  const pase = aHex(a.ultimo(T.ELECCION).pase);
   sala.sale(a);
   await sala.tic();
-  const otra = await sala.entra(TOKEN_A);
+  const otra = await sala.entra(TOKEN_A, { ronda, elegida: 2, pase });
   const e = otra.ultimo(T.ESTADO);
   assert.equal(e.espectador, false);
   assert.equal(e.elegida, 2);
@@ -189,13 +197,14 @@ test('el espectador juega normal desde la siguiente ronda', async () => {
   assert.equal(e.tablas.length, 3);
 });
 
-test('quien vuelve a su misma ronda (r=ronda) no es espectador', async () => {
+test('quien vuelve a su misma ronda con el pase de la espera no es espectador', async () => {
   const sala = crearSala();
   const a = await sala.entra(TOKEN_A);
-  const ronda = a.ultimo(T.ESTADO).ronda;
+  const e0 = a.ultimo(T.ESTADO);
+  assert.ok(e0.pase, 'en la espera ESTADO ya trae el pase de la tabla 0');
   sala.sale(a);
   await sala.tic();
-  const otra = await sala.entra(TOKEN_A, ronda);
+  const otra = await sala.entra(TOKEN_A, { ronda: e0.ronda, elegida: 0, pase: aHex(e0.pase) });
   assert.equal(otra.ultimo(T.ESTADO).espectador, false);
 });
 

@@ -2,9 +2,9 @@
 // Úsalo si no quieres instalar wrangler. La ruta oficial es `npm run dev`.
 
 import { join, normalize } from 'node:path';
-import { Motor, TOKEN_VALIDO, type Adjunto, type Conexion, type RegistroRonda } from '../src/motor.ts';
+import { Motor, TOKEN_VALIDO, reanudarDeUrl, type Adjunto, type Conexion, type Reanudar, type RegistroRonda } from '../src/motor.ts';
 
-type Datos = { token: string; rondaPrevia: number; adjunto: Adjunto | null };
+type Datos = { token: string; reanudar: Reanudar | undefined; adjunto: Adjunto | null };
 type Socket = import('bun').ServerWebSocket<Datos>;
 
 const PUERTO = Number(process.env.PORT ?? 8787);
@@ -15,6 +15,7 @@ let temporizador: ReturnType<typeof setTimeout> | undefined;
 let alarmaPendiente = false;
 // Registros de rondas terminadas, en memoria (en producción van a R2).
 const rondas = new Map<string, string>();
+const recientes: { clave: string; ronda: number; fecha: string; ganadores: number }[] = [];
 
 const conexionDe = (ws: Socket): Conexion => ({
   enviar: (datos) => { ws.send(datos); },
@@ -36,6 +37,11 @@ const motor = new Motor(
     hayAlarma: async () => alarmaPendiente,
     leer: async <V>(clave: string) => structuredClone(almacen.get(clave)) as V | undefined,
     escribir: async (clave, valor) => { almacen.set(clave, structuredClone(valor)); },
+    leerPrefijo: async <V>(prefijo: string) => {
+      const m = new Map<string, V>();
+      for (const [clave, valor] of almacen) if (clave.startsWith(prefijo)) m.set(clave, structuredClone(valor) as V);
+      return m;
+    },
     borrarPrefijo: async (prefijo) => {
       for (const clave of [...almacen.keys()]) if (clave.startsWith(prefijo)) almacen.delete(clave);
     },
@@ -46,6 +52,8 @@ const motor = new Motor(
       const cuerpo = JSON.stringify({ ...r, clave });
       rondas.set(clave, cuerpo);
       rondas.set('ultima', cuerpo);
+      recientes.unshift({ clave, ronda: r.ronda, fecha: new Date(r.fin).toISOString(), ganadores: r.ganadores });
+      recientes.length = Math.min(recientes.length, 20);
     },
   },
   {
@@ -67,7 +75,6 @@ Bun.serve<Datos, never>({
     if (url.pathname === '/ws') {
       const token = url.searchParams.get('t') ?? '';
       if (!TOKEN_VALIDO.test(token)) return new Response('Token inválido', { status: 400 });
-      const rondaPrevia = Number.parseInt(url.searchParams.get('r') ?? '0', 10) || 0;
       const rechazo = await motor.admitir();
       if (rechazo) {
         return new Response(JSON.stringify(rechazo), {
@@ -75,11 +82,12 @@ Bun.serve<Datos, never>({
           headers: { 'Content-Type': 'application/json', 'Retry-After': String(Math.ceil(rechazo.reintentarEnMs / 1000)) },
         });
       }
-      if (servidor.upgrade(peticion, { data: { token, rondaPrevia, adjunto: null } })) return undefined;
+      if (servidor.upgrade(peticion, { data: { token, reanudar: reanudarDeUrl(url), adjunto: null } })) return undefined;
       return new Response('Se esperaba una conexión WebSocket', { status: 426 });
     }
     if (url.pathname.startsWith('/api/rondas/')) {
-      const cuerpo = rondas.get(decodeURIComponent(url.pathname.slice('/api/rondas/'.length)));
+      const resto = decodeURIComponent(url.pathname.slice('/api/rondas/'.length));
+      const cuerpo = resto === 'recientes' ? JSON.stringify(recientes) : rondas.get(resto);
       return new Response(cuerpo ?? JSON.stringify({ error: 'No encontrado' }), {
         status: cuerpo ? 200 : 404,
         headers: { 'Content-Type': 'application/json' },
@@ -93,7 +101,7 @@ Bun.serve<Datos, never>({
   websocket: {
     async open(ws) {
       sockets.add(ws);
-      await motor.conectar(conexionDe(ws), ws.data.token, ws.data.rondaPrevia);
+      await motor.conectar(conexionDe(ws), ws.data.token, ws.data.reanudar);
     },
     async message(ws, mensaje) {
       if (typeof mensaje === 'string') return;

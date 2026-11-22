@@ -27,6 +27,7 @@ function crearSala(catalogo = 16) {
     leer: async (k) => structuredClone(almacen.get(k)) as any,
     escribir: async (k, v) => { almacen.set(k, structuredClone(v)); },
     borrarPrefijo: async (p) => { for (const k of [...almacen.keys()]) if (k.startsWith(p)) almacen.delete(k); },
+    leerPrefijo: async (p) => new Map([...almacen].filter(([k]) => k.startsWith(p)).map(([k, v]) => [k, structuredClone(v)])) as any,
     ahora: () => reloj,
     aleatorio: (n) => new Uint8Array(n).fill(7),
   };
@@ -113,9 +114,10 @@ test('marcar casillas que no han salido no sirve para ganar', async () => {
 
 test('una conexión que vuelve recupera su lugar de ganador', async () => {
   const sala = crearSala();
+  // Los ganadores viven en lotes; la primera ronda es la 1. Simula que el objeto durmió con un ganador guardado.
+  sala.almacen.set('ganadores:1:0000', { [TOKEN_A]: 3 });
   const a = await sala.entra(TOKEN_A);
-  const ronda = a.ultimo(T.ESTADO).ronda;
-  sala.almacen.set(`lugar:${ronda}:${TOKEN_A}`, 3);
+  assert.equal(a.ultimo(T.ESTADO).ronda, 1);
   const otra = await sala.entra(TOKEN_A);
   assert.equal(otra.ultimo(T.ESTADO).lugar, 3);
 });
@@ -155,6 +157,7 @@ test('después de la última carta hay tiempo de gracia para gritar', async () =
     leer: async (k) => structuredClone(almacen.get(k)) as any,
     escribir: async (k, v) => { almacen.set(k, structuredClone(v)); },
     borrarPrefijo: async () => {},
+    leerPrefijo: async () => new Map(),
     ahora: () => 0,
     aleatorio: (n) => new Uint8Array(n).fill(3),
   }, { esperaMs: 1000, cartaMs: 1000, finMs: 1000, catalogo: 16, graciaMs: 9000 });

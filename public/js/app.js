@@ -109,6 +109,21 @@ function cargarMarcas() {
   return 0;
 }
 
+// El pase de la ronda lo firma la sala. Con él, al volver (también tras recargar la página)
+// el jugador conserva su tabla en lugar de entrar como espectador.
+function guardarPase(ronda, elegida, pase) {
+  if (pase) guardado.escribir('loteria:pase', JSON.stringify({ ronda, elegida, pase: aHex(pase) }));
+}
+function parametrosDeVuelta() {
+  try {
+    const g = JSON.parse(guardado.leer('loteria:pase') ?? 'null');
+    if (g && Number.isInteger(g.ronda) && Number.isInteger(g.elegida) && /^[0-9a-f]{32}$/.test(g.pase)) {
+      return `&r=${g.ronda}&e=${g.elegida}&p=${g.pase}`;
+    }
+  } catch { /* sin pase guardado */ }
+  return '';
+}
+
 // ---- Conexión ----
 
 let ws = null;
@@ -122,9 +137,7 @@ function conectar() {
   proximoIntento = 0;
   abrio = false;
   const protocolo = location.protocol === 'https:' ? 'wss' : 'ws';
-  // `r` le dice a la sala en qué ronda estaba este jugador: al volver a la misma ronda no queda como espectador.
-  const ronda = s.ronda ? `&r=${s.ronda}` : '';
-  ws = new WebSocket(`${protocolo}://${location.host}/ws?t=${token}${ronda}`);
+  ws = new WebSocket(`${protocolo}://${location.host}/ws?t=${token}${parametrosDeVuelta()}`);
   ws.binaryType = 'arraybuffer';
   ws.addEventListener('open', () => { abrio = true; });
   ws.addEventListener('message', (evento) => {
@@ -201,6 +214,7 @@ function manejar(m) {
     case T.ESTADO: alEstado(m); break;
     case T.ELECCION:
       s.eligiendo = false;
+      guardarPase(s.ronda, m.indice, m.pase);
       // La sala responde con la tabla que quedó elegida: si rechazó el cambio, es la anterior.
       if (s.tablas[m.indice] && m.indice !== s.elegida) {
         s.elegida = m.indice;
@@ -271,6 +285,7 @@ function alEstado(m) {
     jugadores: m.jugadores, ganadores: m.ganadores, limite: Date.now() + m.msSiguiente,
     conectado: true, esperandoResultado: false, eligiendo: false,
   });
+  guardarPase(m.ronda, m.elegida, m.pase);
   intentos = 0;
   proximoIntento = 0;
   mostrarAviso(null);

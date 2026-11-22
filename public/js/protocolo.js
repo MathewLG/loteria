@@ -7,7 +7,7 @@ export const T = {
   STATS: 0x12,     // sala → todos: jugadores y ganadores
   RESULTADO: 0x13, // sala → jugador: respuesta a su "¡Lotería!"
   FIN: 0x14,       // sala → todos: fin de ronda y semilla revelada
-  ELECCION: 0x15,  // sala → jugador: respuesta a ELIJO, 3 bytes
+  ELECCION: 0x15,  // sala → jugador: respuesta a ELIJO, 19 bytes (con el pase)
   LOTERIA: 0x20,   // jugador → sala: reclamo con su tabla marcada
   ELIJO: 0x21,     // jugador → sala: elige una de las tablas ofrecidas, 4 bytes
 };
@@ -52,22 +52,25 @@ export function mascaraCantadas(tabla, cantadas) {
  *  11-14 jugadores conectados (u32)
  *  15-18 ganadores de la ronda (u32)
  *  19-20 tu lugar, 0 si no has ganado (u16)
- *  21    banderas: bit 0 = trae semilla, bit 1 = eres espectador
+ *  21    banderas: bit 0 = trae semilla, bit 1 = eres espectador, bit 2 = trae pase (espera y canto, nunca a espectadores)
  *  22    índice de la tabla elegida (0..2)
  *  23    t: tablas que siguen. 3 en la espera (las ofrecidas, en orden de índice),
  *        1 al cantar o terminar (solo la elegida), 0 si eres espectador
  *  24-55 huella SHA-256 de la semilla (32)
- *  56    t × 16 bytes: tablas, una carta por byte, en orden de casilla
+ *  ...   16 bytes: tu pase de la ronda, solo si la bandera 2 está prendida (ver ELECCION)
+ *  ...   t × 16 bytes: tablas, una carta por byte, en orden de casilla
  *  ...   n bytes: cartas cantadas en orden
  *  ...   32 bytes: semilla, solo si la bandera 0 está prendida (fase terminada)
  */
-export const BANDERA = { SEMILLA: 1, ESPECTADOR: 2 };
+export const BANDERA = { SEMILLA: 1, ESPECTADOR: 2, PASE: 4 };
+export const LARGO_PASE = 16;
 const CABECERA_ESTADO = 24;
 
 export function codificarEstado(e) {
   const conSemilla = e.fase === FASE.TERMINADA && e.semilla;
   const tablas = e.tablas ?? [];
-  const largo = CABECERA_ESTADO + 32 + tablas.length * 16 + e.cantadas.length + (conSemilla ? 32 : 0);
+  const conPase = !!e.pase;
+  const largo = CABECERA_ESTADO + 32 + (conPase ? LARGO_PASE : 0) + tablas.length * 16 + e.cantadas.length + (conSemilla ? 32 : 0);
   const b = new Uint8Array(largo);
   const v = new DataView(b.buffer);
   v.setUint8(0, T.ESTADO);
@@ -80,11 +83,12 @@ export function codificarEstado(e) {
   v.setUint32(11, e.jugadores, true);
   v.setUint32(15, e.ganadores, true);
   v.setUint16(19, e.lugar, true);
-  v.setUint8(21, (conSemilla ? BANDERA.SEMILLA : 0) | (e.espectador ? BANDERA.ESPECTADOR : 0));
+  v.setUint8(21, (conSemilla ? BANDERA.SEMILLA : 0) | (e.espectador ? BANDERA.ESPECTADOR : 0) | (conPase ? BANDERA.PASE : 0));
   v.setUint8(22, e.elegida ?? 0);
   v.setUint8(23, tablas.length);
   let p = CABECERA_ESTADO;
   b.set(e.huella, p); p += 32;
+  if (conPase) { b.set(e.pase, p); p += LARGO_PASE; }
   for (const t of tablas) { b.set(t, p); p += 16; }
   b.set(e.cantadas, p); p += e.cantadas.length;
   if (conSemilla) b.set(e.semilla, p);
@@ -92,8 +96,23 @@ export function codificarEstado(e) {
 }
 
 /** ELECCION, sala → jugador: [0x15, ok (1/0), índice que quedó elegido]. */
-export function codificarEleccion(ok, indice) {
-  return new Uint8Array([T.ELECCION, ok ? 1 : 0, indice]);
+/*
+ * ELECCION, sala → jugador, 19 bytes: [0x15, ok u8, índice elegido u8, pase 16 bytes].
+ * Si la sala rechaza el cambio, ok = 0 y vienen el índice y el pase que siguen vigentes.
+ *
+ * El pase es lo que el jugador guarda para volver a su ronda (también tras recargar la página):
+ * al reconectar lo manda en la URL como &r=ronda&e=elegida&p=pase en hex. Son los primeros 16 bytes
+ * de SHA-256("pase:" + semilla + ":" + token + ":" + elegida). Nadie lo puede falsificar porque
+ * la semilla es secreta hasta el final de la ronda, y la sala no necesita guardar nada por jugador.
+ * Un espectador recibe 16 ceros.
+ */
+export function codificarEleccion(ok, indice, pase) {
+  const b = new Uint8Array(3 + LARGO_PASE);
+  b[0] = T.ELECCION;
+  b[1] = ok ? 1 : 0;
+  b[2] = indice;
+  if (pase) b.set(pase, 3);
+  return b;
 }
 
 /** ELIJO, jugador → sala: [0x21, ronda u16, índice 0..2]. */
@@ -106,6 +125,10 @@ export function codificarElijo(ronda, indice) {
   return b;
 }
 
+/** El byte de tiempo de CARTA va en unidades de 200 ms: alcanza hasta 51 s. */
+export const UNIDAD_TIEMPO_CARTA = 200;
+export const MAX_MS_CARTA = 255 * UNIDAD_TIEMPO_CARTA;
+
 export function codificarCarta(ronda, indice, carta, msSiguiente) {
   const b = new Uint8Array(6);
   const v = new DataView(b.buffer);
@@ -113,7 +136,7 @@ export function codificarCarta(ronda, indice, carta, msSiguiente) {
   v.setUint16(1, ronda, true);
   v.setUint8(3, indice);
   v.setUint8(4, carta);
-  v.setUint8(5, Math.min(255, Math.round(msSiguiente / 100)));
+  v.setUint8(5, Math.min(255, Math.round(msSiguiente / UNIDAD_TIEMPO_CARTA)));
   return b;
 }
 
@@ -171,12 +194,15 @@ export function decodificar(datos) {
         const n = v.getUint8(6);
         const banderas = v.getUint8(21);
         const conSemilla = (banderas & BANDERA.SEMILLA) !== 0;
+        const conPase = (banderas & BANDERA.PASE) !== 0;
         const elegida = v.getUint8(22);
         const t = v.getUint8(23);
-        const esperado = CABECERA_ESTADO + 32 + t * 16 + n + (conSemilla ? 32 : 0);
+        const esperado = CABECERA_ESTADO + 32 + (conPase ? LARGO_PASE : 0) + t * 16 + n + (conSemilla ? 32 : 0);
         if (b.length !== esperado || t > 3) return null;
         let p = CABECERA_ESTADO;
         const huella = b.slice(p, p + 32); p += 32;
+        const pase = conPase ? b.slice(p, p + LARGO_PASE) : null;
+        if (conPase) p += LARGO_PASE;
         const tablas = [];
         for (let k = 0; k < t; k++) { tablas.push(Array.from(b.slice(p, p + 16))); p += 16; }
         const cantadas = Array.from(b.slice(p, p + n)); p += n;
@@ -187,18 +213,20 @@ export function decodificar(datos) {
           tipo, ronda: v.getUint16(1, true), fase: v.getUint8(3), figura: v.getUint8(4),
           catalogo: v.getUint8(5), msSiguiente: v.getUint32(7, true), jugadores: v.getUint32(11, true),
           ganadores: v.getUint32(15, true), lugar: v.getUint16(19, true),
-          espectador: (banderas & BANDERA.ESPECTADOR) !== 0, elegida, tablas, tabla, huella, cantadas, semilla,
+          espectador: (banderas & BANDERA.ESPECTADOR) !== 0, elegida, tablas, tabla, huella, pase, cantadas, semilla,
         };
       }
-      case T.ELECCION:
-        if (b.length !== 3) return null;
-        return { tipo, ok: b[1] === 1, indice: b[2] };
+      case T.ELECCION: {
+        if (b.length !== 3 + LARGO_PASE) return null;
+        const pase = b.slice(3);
+        return { tipo, ok: b[1] === 1, indice: b[2], pase: pase.some((x) => x !== 0) ? pase : null };
+      }
       case T.ELIJO:
         if (b.length !== 4) return null;
         return { tipo, ronda: v.getUint16(1, true), indice: b[3] };
       case T.CARTA:
         if (b.length !== 6) return null;
-        return { tipo, ronda: v.getUint16(1, true), indice: b[3], carta: b[4], msSiguiente: b[5] * 100 };
+        return { tipo, ronda: v.getUint16(1, true), indice: b[3], carta: b[4], msSiguiente: b[5] * UNIDAD_TIEMPO_CARTA };
       case T.STATS:
         if (b.length !== 9) return null;
         return { tipo, jugadores: v.getUint32(1, true), ganadores: v.getUint32(5, true) };

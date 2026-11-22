@@ -3,16 +3,18 @@
 // en el servidor local con Bun y en las pruebas.
 
 import {
-  FASE, MOTIVO, T, codificarCarta, codificarEleccion, codificarEstado, codificarFin,
+  FASE, LARGO_PASE, MAX_MS_CARTA, MOTIVO, T, codificarCarta, codificarEleccion, codificarEstado, codificarFin,
   codificarResultado, codificarStats, cumpleFigura, decodificar, mascaraCantadas,
 } from '../public/js/protocolo.js';
-import { TABLAS_OFRECIDAS, aHex, barajar, deHex, sha256, tablaDe, tablasOfrecidas } from '../public/js/baraja.js';
+import { TABLAS_OFRECIDAS, aHex, barajar, deHex, igualesBytes, sha256, tablaDe, tablasOfrecidas } from '../public/js/baraja.js';
 
 export interface Adjunto {
   token: string;
   ronda: number;
   lugar: number;
   ultimoReclamo: number;
+  /** Momento del último reclamo, para limitar reintentos durante la gracia. */
+  ultimoReclamoEn?: number;
   /** Índice de la tabla elegida entre las ofrecidas (0..2). */
   elegida: number;
   /** Llegó con la ronda ya cantándose: mira pero no puede reclamar. */
@@ -43,6 +45,8 @@ export interface Entorno {
   leer<V>(clave: string): Promise<V | undefined>;
   escribir(clave: string, valor: unknown): Promise<void>;
   borrarPrefijo(prefijo: string): Promise<void>;
+  /** Todas las claves con un prefijo, con su valor. Leer filas es barato; escribirlas no. */
+  leerPrefijo<V>(prefijo: string): Promise<Map<string, V>>;
   ahora(): number;
   aleatorio(n: number): Uint8Array;
   /** Opcional: guardar el registro de una ronda terminada (R2 en producción). */
@@ -94,21 +98,93 @@ export interface Rechazo {
 
 const CLAVE_ESTADO = 'estado';
 const CLAVE_CUOTA = 'cuota';
-const claveLugar = (ronda: number, token: string) => `lugar:${ronda}:${token}`;
-const claveTabla = (ronda: number, token: string) => `tabla:${ronda}:${token}`;
+// Los ganadores se guardan en lotes, una fila por lote, nunca una por jugador:
+// el plan gratuito permite 100,000 filas escritas al día en Durable Objects con SQLite.
+const prefijoGanadores = (ronda: number) => `ganadores:${ronda}:`;
+const MAX_POR_LOTE = 1500; // ~60 KB por fila, debajo del límite de 128 KiB por valor
 const DIA_MS = 86_400_000;
 
 export const TOKEN_VALIDO = /^[0-9a-f]{32}$/;
+export const PASE_VALIDO = /^[0-9a-f]{32}$/;
+
+/** Lee los parámetros de reconexión de la URL del WebSocket: r (ronda), e (tabla elegida), p (pase). */
+export function reanudarDeUrl(url: URL): Reanudar | undefined {
+  const ronda = Number.parseInt(url.searchParams.get('r') ?? '', 10);
+  if (!Number.isInteger(ronda) || ronda <= 0) return undefined;
+  const elegida = Number.parseInt(url.searchParams.get('e') ?? '0', 10);
+  const pase = url.searchParams.get('p') ?? undefined;
+  return { ronda, elegida: Number.isInteger(elegida) ? elegida : 0, pase };
+}
+
+/** Lo que un cliente manda al reconectar para seguir en su ronda. */
+export interface Reanudar {
+  ronda: number;
+  elegida: number;
+  pase?: string;
+}
+
+/** Ganadores de la ronda en memoria; se guardan en lotes en cada paso del reloj. */
+interface Ganadores {
+  ronda: number;
+  lugares: Map<string, number>;
+  pendientes: Map<string, number>;
+  lotes: number;
+  ultimoGuardado: number;
+}
+
+const codificador = new TextEncoder();
+
+/**
+ * Pase de un jugador para una ronda. Depende de la semilla, que es secreta hasta el final,
+ * así que solo la sala puede emitirlo. Sustituye a guardar la tabla elegida de cada jugador.
+ */
+export function calcularPase(semilla: string, token: string, elegida: number): Uint8Array {
+  return sha256(codificador.encode(`pase:${semilla}:${token}:${elegida}`)).slice(0, LARGO_PASE);
+}
 
 export class Motor {
   private env: Entorno;
   private cfg: Required<Config>;
   private cacheBaraja: { semilla: string; cartas: number[] } | null = null;
   private cuota: Cuota | null = null;
+  private ganadores: Ganadores | null = null;
 
   constructor(env: Entorno, cfg: Config) {
     this.env = env;
     this.cfg = { cupo: 5000, cuotaDiaria: 100_000, umbralCuota: 0.9, graciaMs: 10000, ...cfg };
+    // La carta anuncia el tiempo en un byte de 200 ms: más de 51 s no cabe.
+    for (const campo of ['cartaMs', 'graciaMs'] as const) {
+      if (this.cfg[campo] > MAX_MS_CARTA) {
+        console.warn(`${campo} = ${this.cfg[campo]} ms no cabe en el mensaje de carta; se usa ${MAX_MS_CARTA} ms.`);
+        this.cfg[campo] = MAX_MS_CARTA;
+      }
+    }
+  }
+
+  // ---- Ganadores ----
+
+  /** Carga los ganadores de la ronda si la memoria se perdió (el objeto pudo dormir). */
+  private async ganadoresDe(ronda: number): Promise<Ganadores> {
+    if (this.ganadores?.ronda === ronda) return this.ganadores;
+    const lugares = new Map<string, number>();
+    const lotes = await this.env.leerPrefijo<Record<string, number>>(prefijoGanadores(ronda));
+    for (const lote of lotes.values()) for (const [token, lugar] of Object.entries(lote)) lugares.set(token, lugar);
+    this.ganadores = { ronda, lugares, pendientes: new Map(), lotes: lotes.size, ultimoGuardado: this.env.ahora() };
+    return this.ganadores;
+  }
+
+  /** Escribe los ganadores nuevos como una fila (o pocas). Se llama en cada paso del reloj. */
+  private async guardarGanadores(): Promise<void> {
+    const g = this.ganadores;
+    if (!g || g.pendientes.size === 0) return;
+    const pendientes = [...g.pendientes];
+    g.pendientes = new Map();
+    g.ultimoGuardado = this.env.ahora();
+    for (let i = 0; i < pendientes.length; i += MAX_POR_LOTE) {
+      const lote = Object.fromEntries(pendientes.slice(i, i + MAX_POR_LOTE));
+      await this.env.escribir(`${prefijoGanadores(g.ronda)}${String(g.lotes).padStart(4, '0')}`, lote);
+      g.lotes += 1;
+    }
   }
 
   private baraja(semilla: string): number[] {
@@ -177,19 +253,28 @@ export class Motor {
 
   /**
    * Un jugador entra. Si la sala dormía, arranca una ronda nueva.
-   * `rondaPrevia` es la ronda que el cliente estaba jugando antes de perder la conexión:
-   * quien vuelve a su misma ronda no queda como espectador.
+   * `reanudar` es lo que el cliente guardó de su ronda: en la espera basta la tabla elegida;
+   * durante el canto hace falta un pase válido para no quedar como espectador.
+   * No se escribe nada por jugador: la tabla elegida vive en el adjunto y en el pase.
    */
-  async conectar(c: Conexion, token: string, rondaPrevia = 0): Promise<void> {
+  async conectar(c: Conexion, token: string, reanudar?: Reanudar): Promise<void> {
     let e = await this.env.leer<EstadoSala>(CLAVE_ESTADO);
     if (!e || !(await this.env.hayAlarma())) {
       e = await this.nuevaRonda(e, false);
     }
-    const lugar = (await this.env.leer<number>(claveLugar(e.ronda, token))) ?? 0;
-    const guardada = await this.env.leer<number>(claveTabla(e.ronda, token));
-    const elegida = guardada ?? 0;
-    const volvio = rondaPrevia === e.ronda || guardada !== undefined || lugar > 0;
-    const espectador = e.fase === FASE.CANTANDO && !volvio;
+    const lugar = (await this.ganadoresDe(e.ronda)).lugares.get(token) ?? 0;
+    const indice = reanudar && reanudar.ronda === e.ronda && Number.isInteger(reanudar.elegida)
+      && reanudar.elegida >= 0 && reanudar.elegida < TABLAS_OFRECIDAS ? reanudar.elegida : -1;
+    let elegida = 0;
+    let espectador = false;
+    if (e.fase === FASE.ESPERA) {
+      if (indice >= 0) elegida = indice;
+    } else {
+      const paseOk = indice >= 0 && !!reanudar?.pase && PASE_VALIDO.test(reanudar.pase)
+        && igualesBytes(deHex(reanudar.pase), calcularPase(e.semilla, token, indice));
+      if (paseOk) elegida = indice;
+      espectador = e.fase === FASE.CANTANDO && !paseOk && lugar === 0;
+    }
     const a: Adjunto = { token, ronda: e.ronda, lugar, ultimoReclamo: -1, elegida, espectador };
     c.guardarAdjunto(a);
     c.enviar(this.estadoPara(e, a));
@@ -209,13 +294,12 @@ export class Motor {
     const valido = !!e && e.fase === FASE.ESPERA && ronda === e.ronda && a.ronda === e.ronda
       && !a.espectador && Number.isInteger(indice) && indice >= 0 && indice < TABLAS_OFRECIDAS;
     if (!valido || !e) {
-      c.enviar(codificarEleccion(false, a.elegida));
+      c.enviar(codificarEleccion(false, a.elegida, a.espectador || !e ? null : this.paseDe(e, a)));
       return;
     }
     a.elegida = indice;
     c.guardarAdjunto(a);
-    await this.env.escribir(claveTabla(e.ronda, a.token), indice);
-    c.enviar(codificarEleccion(true, indice));
+    c.enviar(codificarEleccion(true, indice, this.paseDe(e, a)));
   }
 
   private async reclamar(c: Conexion, a: Adjunto, ronda: number, marcadas: number): Promise<void> {
@@ -236,11 +320,18 @@ export class Motor {
       c.enviar(codificarResultado(true, MOTIVO.YA_GANASTE, a.lugar));
       return;
     }
-    if (a.ultimoReclamo === e.cantadas) {
+    // Un reclamo por carta. Durante la gracia final ya no salen cartas: un reclamo por segundo.
+    const ahora = this.env.ahora();
+    const enGracia = e.cantadas >= this.cfg.catalogo;
+    const seguido = enGracia
+      ? a.ultimoReclamo === e.cantadas && ahora - (a.ultimoReclamoEn ?? 0) < 1000
+      : a.ultimoReclamo === e.cantadas;
+    if (seguido) {
       c.enviar(codificarResultado(false, MOTIVO.MUY_SEGUIDO, 0));
       return;
     }
     a.ultimoReclamo = e.cantadas;
+    a.ultimoReclamoEn = ahora;
 
     const tabla = tablaDe(a.token, e.ronda, this.cfg.catalogo, a.elegida);
     const salieron = this.baraja(e.semilla).slice(0, e.cantadas);
@@ -251,12 +342,23 @@ export class Motor {
       return;
     }
 
-    e.ganadores += 1;
-    a.lugar = e.ganadores;
-    await this.env.escribir(CLAVE_ESTADO, e);
-    await this.env.escribir(claveLugar(e.ronda, a.token), a.lugar);
+    // Un token gana una sola vez por ronda, aunque grite desde varias conexiones (#42).
+    // Leer y apartar el lugar ocurre sin pausas intermedias, así que dos conexiones no se cruzan.
+    const g = await this.ganadoresDe(e.ronda);
+    const previo = g.lugares.get(a.token);
+    if (previo) {
+      a.lugar = previo;
+      c.guardarAdjunto(a);
+      c.enviar(codificarResultado(true, MOTIVO.YA_GANASTE, previo));
+      return;
+    }
+    a.lugar = g.lugares.size + 1;
+    g.lugares.set(a.token, a.lugar);
+    g.pendientes.set(a.token, a.lugar);
     c.guardarAdjunto(a);
     c.enviar(codificarResultado(true, MOTIVO.OK, a.lugar));
+    // Se guardan en lote; si llevan más de un segundo esperando, se guardan ya.
+    if (ahora - g.ultimoGuardado >= 1000 || g.pendientes.size >= MAX_POR_LOTE) await this.guardarGanadores();
   }
 
   // ---- Reloj ----
@@ -266,6 +368,9 @@ export class Motor {
     const e = await this.env.leer<EstadoSala>(CLAVE_ESTADO);
     if (!e) return;
     await this.guardarCuota();
+    await this.guardarGanadores();
+    // Si el objeto durmió, la memoria de ganadores se recarga de sus lotes.
+    e.ganadores = (await this.ganadoresDe(e.ronda)).lugares.size;
     // Nadie conectado: la sala se duerme y no gasta cuota. Al volver alguien, arranca otra ronda.
     if (this.env.conexiones().length === 0) return;
 
@@ -325,10 +430,8 @@ export class Motor {
 
   private async nuevaRonda(prev: EstadoSala | undefined, avisar: boolean): Promise<EstadoSala> {
     const ronda = ((prev?.ronda ?? 0) % 65535) + 1;
-    if (prev) {
-      await this.env.borrarPrefijo(`lugar:${prev.ronda}:`);
-      await this.env.borrarPrefijo(`tabla:${prev.ronda}:`);
-    }
+    if (prev) await this.env.borrarPrefijo(prefijoGanadores(prev.ronda));
+    this.ganadores = null;
     const e: EstadoSala = {
       ronda,
       fase: FASE.ESPERA,
@@ -370,12 +473,17 @@ export class Motor {
       ganadores: e.ganadores,
       lugar: a.lugar,
       espectador: a.espectador,
+      pase: e.fase !== FASE.TERMINADA && !a.espectador ? this.paseDe(e, a) : null,
       elegida: a.elegida,
       huella: sha256(semilla),
       tablas,
       cantadas: this.baraja(e.semilla).slice(0, e.cantadas),
       semilla: e.fase === FASE.TERMINADA ? semilla : null,
     });
+  }
+
+  private paseDe(e: EstadoSala, a: Adjunto): Uint8Array {
+    return calcularPase(e.semilla, a.token, a.elegida);
   }
 
   private difundir(conexiones: Conexion[], datos: Uint8Array): void {

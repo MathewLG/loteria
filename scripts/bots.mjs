@@ -16,6 +16,7 @@ function crearBot(numero) {
   const distraido = Math.random() < 0.15;
   let b = { ronda: 0, fase: FASE.ESPERA, figura: 0, tablas: [], tabla: [], cantadas: [], marcadas: 0, gritando: false, gano: false, espectador: false };
   let ws;
+  let pase = null;
 
   const revisar = () => {
     if (b.gano || b.gritando || b.espectador || b.fase !== FASE.CANTANDO) return;
@@ -25,13 +26,15 @@ function crearBot(numero) {
   };
 
   const conectar = () => {
-    // `r` le dice a la sala qué ronda estaba jugando el bot, para no quedar de espectador al reconectar.
-    ws = new WebSocket(`${URL_SALA}?t=${token}${b.ronda ? `&r=${b.ronda}` : ''}`);
+    // Con el pase firmado por la sala, el bot vuelve a su ronda sin quedar de espectador.
+    const vuelta = pase ? `&r=${pase.ronda}&e=${pase.elegida}&p=${pase.hex}` : '';
+    ws = new WebSocket(`${URL_SALA}?t=${token}${vuelta}`);
     ws.binaryType = 'arraybuffer';
     ws.addEventListener('message', (evento) => {
       const m = decodificar(evento.data);
       if (!m) return;
       if (m.tipo === T.ESTADO) {
+        if (m.pase) pase = { ronda: m.ronda, elegida: m.elegida, hex: aHex(m.pase) };
         b = {
           ronda: m.ronda, fase: m.fase, figura: m.figura, tablas: m.tablas, tabla: m.tabla, cantadas: m.cantadas,
           marcadas: mascaraCantadas(m.tabla, m.cantadas), gritando: false, gano: m.lugar > 0, espectador: m.espectador,
@@ -42,6 +45,7 @@ function crearBot(numero) {
           setTimeout(() => ws.readyState === WebSocket.OPEN && ws.send(codificarElijo(b.ronda, indice)), azar(100, 1000));
         }
       } else if (m.tipo === T.ELECCION && m.ok) {
+        if (m.pase) pase = { ronda: b.ronda, elegida: m.indice, hex: aHex(m.pase) };
         b.tabla = b.tablas[m.indice] ?? b.tabla;
         b.marcadas = mascaraCantadas(b.tabla, b.cantadas);
       } else if (m.tipo === T.CARTA && m.ronda === b.ronda) {
