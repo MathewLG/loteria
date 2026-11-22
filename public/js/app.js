@@ -1,5 +1,5 @@
 import {
-  T, FASE, MOTIVO, decodificar, codificarElijo, codificarLoteria, cumpleFigura, mascaraCantadas,
+  T, FASE, MOTIVO, decodificar, codificarElijo, codificarLoteria,
 } from './protocolo.js';
 import { aHex, igualesBytes } from './baraja.js';
 import { NOMBRES, SVG_FRIJOL, svgCarta, svgReverso } from './cartas.js';
@@ -57,6 +57,8 @@ const s = {
   eligiendo: false,
   tabla: [],
   espectador: false,
+  /** Gritó en falso: queda fuera hasta la siguiente ronda. */
+  descalificado: false,
   cantadas: [],
   huella: null,
   semilla: null,
@@ -224,8 +226,8 @@ function manejar(m) {
         construirTabla();
       }
       pintarEleccion();
-      if (m.ok) anunciar(`Elegiste la tabla ${m.indice + 1}.`);
-      else decir('Ya no se puede cambiar de tabla.');
+      if (m.ok) anunciar(`Elegiste la carta ${m.indice + 1}.`);
+      else decir('Ya no se puede cambiar de carta.');
       break;
     case T.CARTA: {
       if (m.ronda !== s.ronda || m.indice <= s.cantadas.length) return;
@@ -253,10 +255,13 @@ function manejar(m) {
       if (m.ok) {
         s.lugar = m.lugar;
         decir(`¡Lotería! Llegaste en el lugar ${m.lugar}.`, true);
-      } else if (m.motivo === MOTIVO.INCOMPLETA) {
-        decir('La sala no ve tu tabla llena. Revisa tus frijoles.');
+      } else if (m.motivo === MOTIVO.DESCALIFICADO) {
+        s.descalificado = true;
+        sacudir(ui.botonLoteria);
+        decir('¡Te equivocaste! Quedas fuera de esta ronda; juega la siguiente.');
+        anunciar('Falsa lotería: tu carta no estaba llena. Quedas fuera de esta ronda.');
       } else if (m.motivo === MOTIVO.MUY_SEGUIDO) {
-        decir('Espera la siguiente carta para volver a gritar.');
+        decir('Espera un momento para volver a gritar.');
       } else if (m.motivo === MOTIVO.ESPECTADOR) {
         decir('En esta ronda estás mirando. Juegas en la siguiente.');
       } else {
@@ -282,7 +287,7 @@ function alEstado(m) {
   const otraTabla = otraRonda || m.elegida !== s.elegida || m.tablas.length !== s.tablas.length;
   Object.assign(s, {
     ronda: m.ronda, fase: m.fase, figura: m.figura, catalogo: m.catalogo,
-    tablas: m.tablas, elegida: m.elegida, tabla: m.tabla, espectador: m.espectador,
+    tablas: m.tablas, elegida: m.elegida, tabla: m.tabla, espectador: m.espectador, descalificado: !!m.descalificado,
     cantadas: m.cantadas, huella: m.huella, semilla: m.semilla, lugar: m.lugar,
     jugadores: m.jugadores, ganadores: m.ganadores, limite: Date.now() + m.msSiguiente,
     conectado: true, esperandoResultado: false, eligiendo: false,
@@ -303,7 +308,7 @@ function alEstado(m) {
   }
   if (s.fase === FASE.TERMINADA && s.semilla) verificar();
   pintarTodo(otraRonda);
-  if (otraRonda && s.fase === FASE.ESPERA) anunciar('Nueva ronda. Elige tu tabla. Gana quien llene toda su tabla.');
+  if (otraRonda && s.fase === FASE.ESPERA) anunciar('Nueva ronda. Elige tu carta. Gana quien llene toda su carta.');
 }
 
 function verificar() {
@@ -405,14 +410,11 @@ function tocar(i) {
     decir('La ronda ya terminó.');
     return;
   }
+  // Como en la mesa: el frijol se pone donde uno quiera; equivocarse se paga al gritar.
   if (s.marcadas & bit) {
     s.marcadas &= ~bit;
     boton.querySelector('.frijol')?.remove();
     decir(`Quitaste el frijol de ${nombre}.`);
-  } else if (!s.cantadas.includes(s.tabla[i])) {
-    sacudir(boton);
-    decir(`Todavía no sale ${nombre}.`);
-    return;
   } else {
     s.marcadas |= bit;
     ponerFrijol(boton, i, true);
@@ -435,8 +437,8 @@ function pintarEleccion() {
       b.className = 'opcion-tabla';
       b.setAttribute('role', 'radio');
       // La tabla elegida se ve abajo a tamaño de juego; aquí basta el número y, para el lector, sus primeras cartas.
-      b.setAttribute('aria-label', `Tabla ${i + 1}: empieza con ${tabla.slice(0, 4).map((c) => NOMBRES[c - 1]).join(', ')}`);
-      b.textContent = `Tabla ${i + 1}`;
+      b.setAttribute('aria-label', `Carta ${i + 1}: empieza con ${tabla.slice(0, 4).map((c) => NOMBRES[c - 1]).join(', ')}`);
+      b.textContent = `Carta ${i + 1}`;
       b.addEventListener('click', () => elegirTabla(i));
       b.addEventListener('keydown', (e) => moverEleccion(e, i));
       return b;
@@ -474,19 +476,14 @@ function elegirTabla(i) {
 }
 
 ui.botonLoteria.addEventListener('click', () => {
-  if (s.fase !== FASE.CANTANDO || s.espectador || s.lugar) return;
-  const validas = s.marcadas & mascaraCantadas(s.tabla, s.cantadas);
-  if (!cumpleFigura(validas, s.figura)) {
-    sacudir(ui.botonLoteria);
-    const faltan = 16 - contarFrijoles(validas);
-    decir(`Todavía no llenas tu tabla: ${faltan === 1 ? 'te falta 1 frijol' : `te faltan ${faltan} frijoles`}.`);
-    return;
-  }
+  if (s.fase !== FASE.CANTANDO || s.espectador || s.lugar || s.descalificado || s.esperandoResultado) return;
+  // La sala decide: gana con la carta llena (16 frijoles y las 16 cartas cantadas);
+  // si no, es falsa lotería y el jugador queda fuera de la ronda.
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     decir('No hay conexión con la sala. Espera a que regrese.');
     return;
   }
-  ws.send(codificarLoteria(s.ronda, validas));
+  ws.send(codificarLoteria(s.ronda, s.marcadas));
   s.esperandoResultado = true;
   actualizarBoton();
   setTimeout(() => {
@@ -515,7 +512,7 @@ function pintarHistorial() {
     const li = document.createElement('li');
     const mia = mias.has(carta) && !s.espectador;
     if (mia) li.className = 'mia';
-    li.innerHTML = `<span class="orden">${orden}.</span>${cartaChica(carta)}<span>${NOMBRES[carta - 1]}</span>${mia ? '<span class="etiqueta-mia">En tu tabla</span>' : ''}`;
+    li.innerHTML = `<span class="orden">${orden}.</span>${cartaChica(carta)}<span>${NOMBRES[carta - 1]}</span>${mia ? '<span class="etiqueta-mia">En tu carta</span>' : ''}`;
     return li;
   }));
 }
@@ -570,7 +567,7 @@ function contarFrijoles(mascara) {
 
 function textoResultado() {
   if (s.lugar) return `¡Ganaste! Llegaste en el lugar ${s.lugar} de ${s.ganadores}.`;
-  if (s.ganadores === 0) return 'Nadie llenó su tabla esta vez.';
+  if (s.ganadores === 0) return 'Nadie llenó su carta esta vez.';
   return `Ganaron ${s.ganadores} ${s.ganadores === 1 ? 'persona' : 'personas'}.${s.espectador ? '' : ' Esta vez no te tocó.'}`;
 }
 
@@ -608,7 +605,7 @@ function pintarCantor(animar) {
   ultimoSegundo = -1;
   if (s.fase === FASE.ESPERA) {
     ui.cantorEtiqueta.textContent = 'Pura llena';
-    ui.cantorVerso.textContent = 'Gana quien llene toda su tabla.';
+    ui.cantorVerso.textContent = 'Gana quien llene toda su carta.';
     pintarCuentaEspera();
     reiniciarBarra(s.limite - Date.now());
     return;

@@ -13,8 +13,10 @@ export interface Adjunto {
   ronda: number;
   lugar: number;
   ultimoReclamo: number;
-  /** Momento del último reclamo, para limitar reintentos durante la gracia. */
+  /** Momento del último reclamo: a lo más un reclamo por segundo por conexión. */
   ultimoReclamoEn?: number;
+  /** Gritó ¡Lotería! sin tener la carta llena: queda fuera el resto de la ronda. */
+  descalificado?: boolean;
   /** Índice de la tabla elegida entre las ofrecidas (0..2). */
   elegida: number;
   /** Llegó con la ronda ya cantándose: mira pero no puede reclamar. */
@@ -101,6 +103,9 @@ const CLAVE_CUOTA = 'cuota';
 // Los ganadores se guardan en lotes, una fila por lote, nunca una por jugador:
 // el plan gratuito permite 100,000 filas escritas al día en Durable Objects con SQLite.
 const prefijoGanadores = (ronda: number) => `ganadores:${ronda}:`;
+// Los descalificados también van en lotes: a lo más una fila por paso del reloj, sin importar
+// cuántos griten en falso. Así una descalificación sobrevive a la reconexión sin escribir por jugador.
+const prefijoDescalificados = (ronda: number) => `descalificados:${ronda}:`;
 const MAX_POR_LOTE = 1500; // ~60 KB por fila, debajo del límite de 128 KiB por valor
 const DIA_MS = 86_400_000;
 
@@ -130,6 +135,9 @@ interface Ganadores {
   pendientes: Map<string, number>;
   lotes: number;
   ultimoGuardado: number;
+  descalificados: Set<string>;
+  descalificadosPendientes: Set<string>;
+  lotesDescalificados: number;
 }
 
 const codificador = new TextEncoder();
@@ -169,17 +177,32 @@ export class Motor {
     const lugares = new Map<string, number>();
     const lotes = await this.env.leerPrefijo<Record<string, number>>(prefijoGanadores(ronda));
     for (const lote of lotes.values()) for (const [token, lugar] of Object.entries(lote)) lugares.set(token, lugar);
-    this.ganadores = { ronda, lugares, pendientes: new Map(), lotes: lotes.size, ultimoGuardado: this.env.ahora() };
+    const descalificados = new Set<string>();
+    const lotesD = await this.env.leerPrefijo<string[]>(prefijoDescalificados(ronda));
+    for (const lote of lotesD.values()) for (const token of lote) descalificados.add(token);
+    this.ganadores = {
+      ronda, lugares, pendientes: new Map(), lotes: lotes.size, ultimoGuardado: this.env.ahora(),
+      descalificados, descalificadosPendientes: new Set(), lotesDescalificados: lotesD.size,
+    };
     return this.ganadores;
   }
 
   /** Escribe los ganadores nuevos como una fila (o pocas). Se llama en cada paso del reloj. */
   private async guardarGanadores(): Promise<void> {
     const g = this.ganadores;
-    if (!g || g.pendientes.size === 0) return;
+    if (!g || (g.pendientes.size === 0 && g.descalificadosPendientes.size === 0)) return;
+    g.ultimoGuardado = this.env.ahora();
+    if (g.descalificadosPendientes.size > 0) {
+      const tokens = [...g.descalificadosPendientes];
+      g.descalificadosPendientes = new Set();
+      for (let i = 0; i < tokens.length; i += MAX_POR_LOTE) {
+        await this.env.escribir(`${prefijoDescalificados(g.ronda)}${String(g.lotesDescalificados).padStart(4, '0')}`, tokens.slice(i, i + MAX_POR_LOTE));
+        g.lotesDescalificados += 1;
+      }
+    }
+    if (g.pendientes.size === 0) return;
     const pendientes = [...g.pendientes];
     g.pendientes = new Map();
-    g.ultimoGuardado = this.env.ahora();
     for (let i = 0; i < pendientes.length; i += MAX_POR_LOTE) {
       const lote = Object.fromEntries(pendientes.slice(i, i + MAX_POR_LOTE));
       await this.env.escribir(`${prefijoGanadores(g.ronda)}${String(g.lotes).padStart(4, '0')}`, lote);
@@ -262,7 +285,9 @@ export class Motor {
     if (!e || !(await this.env.hayAlarma())) {
       e = await this.nuevaRonda(e, false);
     }
-    const lugar = (await this.ganadoresDe(e.ronda)).lugares.get(token) ?? 0;
+    const g = await this.ganadoresDe(e.ronda);
+    const lugar = g.lugares.get(token) ?? 0;
+    const descalificado = g.descalificados.has(token);
     const indice = reanudar && reanudar.ronda === e.ronda && Number.isInteger(reanudar.elegida)
       && reanudar.elegida >= 0 && reanudar.elegida < TABLAS_OFRECIDAS ? reanudar.elegida : -1;
     let elegida = 0;
@@ -275,7 +300,7 @@ export class Motor {
       if (paseOk) elegida = indice;
       espectador = e.fase === FASE.CANTANDO && !paseOk && lugar === 0;
     }
-    const a: Adjunto = { token, ronda: e.ronda, lugar, ultimoReclamo: -1, elegida, espectador };
+    const a: Adjunto = { token, ronda: e.ronda, lugar, ultimoReclamo: -1, elegida, espectador, descalificado };
     c.guardarAdjunto(a);
     c.enviar(this.estadoPara(e, a));
   }
@@ -310,7 +335,7 @@ export class Motor {
     }
     if (a.ronda !== e.ronda) {
       // El adjunto quedó de una ronda anterior: en esta ronda juega con su tabla 0.
-      Object.assign(a, { ronda: e.ronda, lugar: 0, ultimoReclamo: -1, elegida: 0, espectador: false });
+      Object.assign(a, { ronda: e.ronda, lugar: 0, ultimoReclamo: -1, elegida: 0, espectador: false, descalificado: false });
     }
     if (a.espectador) {
       c.enviar(codificarResultado(false, MOTIVO.ESPECTADOR, 0));
@@ -320,31 +345,40 @@ export class Motor {
       c.enviar(codificarResultado(true, MOTIVO.YA_GANASTE, a.lugar));
       return;
     }
-    // Un reclamo por carta. Durante la gracia final ya no salen cartas: un reclamo por segundo.
+    const g = await this.ganadoresDe(e.ronda);
+    if (a.descalificado || g.descalificados.has(a.token)) {
+      a.descalificado = true;
+      c.guardarAdjunto(a);
+      c.enviar(codificarResultado(false, MOTIVO.DESCALIFICADO, 0));
+      return;
+    }
+    // A lo más un reclamo por segundo por conexión, para que nadie gaste la cuota a gritos.
     const ahora = this.env.ahora();
-    const enGracia = e.cantadas >= this.cfg.catalogo;
-    const seguido = enGracia
-      ? a.ultimoReclamo === e.cantadas && ahora - (a.ultimoReclamoEn ?? 0) < 1000
-      : a.ultimoReclamo === e.cantadas;
-    if (seguido) {
+    if (ahora - (a.ultimoReclamoEn ?? -Infinity) < 1000) {
       c.enviar(codificarResultado(false, MOTIVO.MUY_SEGUIDO, 0));
       return;
     }
     a.ultimoReclamo = e.cantadas;
     a.ultimoReclamoEn = ahora;
 
+    // Como en la mesa: gana quien grita con su carta llena, es decir, con frijol en las 16
+    // casillas y las 16 cartas ya cantadas. Gritar sin eso es una falsa lotería y deja fuera
+    // al jugador el resto de la ronda (también si se reconecta).
     const tabla = tablaDe(a.token, e.ronda, this.cfg.catalogo, a.elegida);
     const salieron = this.baraja(e.semilla).slice(0, e.cantadas);
-    const validas = marcadas & mascaraCantadas(tabla, salieron);
-    if (!cumpleFigura(validas, e.figura)) {
+    const llena = (marcadas & 0xffff) === 0xffff && cumpleFigura(mascaraCantadas(tabla, salieron), e.figura);
+    if (!llena) {
+      a.descalificado = true;
+      g.descalificados.add(a.token);
+      g.descalificadosPendientes.add(a.token);
       c.guardarAdjunto(a);
-      c.enviar(codificarResultado(false, MOTIVO.INCOMPLETA, 0));
+      c.enviar(codificarResultado(false, MOTIVO.DESCALIFICADO, 0));
+      if (ahora - g.ultimoGuardado >= 1000 || g.descalificadosPendientes.size >= MAX_POR_LOTE) await this.guardarGanadores();
       return;
     }
 
     // Un token gana una sola vez por ronda, aunque grite desde varias conexiones (#42).
     // Leer y apartar el lugar ocurre sin pausas intermedias, así que dos conexiones no se cruzan.
-    const g = await this.ganadoresDe(e.ronda);
     const previo = g.lugares.get(a.token);
     if (previo) {
       a.lugar = previo;
@@ -430,7 +464,10 @@ export class Motor {
 
   private async nuevaRonda(prev: EstadoSala | undefined, avisar: boolean): Promise<EstadoSala> {
     const ronda = ((prev?.ronda ?? 0) % 65535) + 1;
-    if (prev) await this.env.borrarPrefijo(prefijoGanadores(prev.ronda));
+    if (prev) {
+      await this.env.borrarPrefijo(prefijoGanadores(prev.ronda));
+      await this.env.borrarPrefijo(prefijoDescalificados(prev.ronda));
+    }
     this.ganadores = null;
     const e: EstadoSala = {
       ronda,
@@ -473,6 +510,7 @@ export class Motor {
       ganadores: e.ganadores,
       lugar: a.lugar,
       espectador: a.espectador,
+      descalificado: !!a.descalificado,
       pase: e.fase !== FASE.TERMINADA && !a.espectador ? this.paseDe(e, a) : null,
       elegida: a.elegida,
       huella: sha256(semilla),

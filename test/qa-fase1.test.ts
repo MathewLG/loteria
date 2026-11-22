@@ -31,9 +31,12 @@ function crearSala(extra: Partial<Config> = {}, catalogo = 16) {
     ahora: () => reloj,
     aleatorio: (n) => new Uint8Array(n).fill(5),
   };
-  const motor = new Motor(entorno, { esperaMs: 1000, cartaMs: 1000, finMs: 1000, catalogo, ...extra });
+  const config = { esperaMs: 1000, cartaMs: 1000, finMs: 1000, catalogo, ...extra };
+  let motor = new Motor(entorno, config);
   return {
-    motor,
+    get motor() { return motor; },
+    /** Un motor nuevo sobre el mismo almacenamiento, como un Durable Object que despertó. */
+    olvidar() { motor = new Motor(entorno, config); },
     almacen,
     escrituras,
     async entra(token: string, reanudar?: Reanudar) {
@@ -138,18 +141,14 @@ test('#45: el tiempo de la carta alcanza más de 25.5 s', () => {
   assert.equal(codificarCarta(1, 54, 7, 30_000).length, 6, 'la carta sigue pesando 6 bytes');
 });
 
-test('#46: durante la gracia final se puede volver a gritar después de un segundo', async () => {
+test('#46: durante la gracia final todavía se puede gritar con la carta llena', async () => {
   const sala = crearSala({ graciaMs: 10_000 });
   const a = await sala.entra(TOKEN_A);
   const ronda = a.ultimo(T.ESTADO).ronda;
   for (let i = 0; i < 16; i++) await sala.tic(); // 16 cartas: ya en la gracia
-  await sala.motor.mensaje(a, codificarLoteria(ronda, 0)); // grito equivocado
-  assert.equal(a.ultimo(T.RESULTADO).motivo, MOTIVO.INCOMPLETA);
+  sala.avanzar(5000);
   await sala.motor.mensaje(a, codificarLoteria(ronda, 0xffff));
-  assert.equal(a.ultimo(T.RESULTADO).motivo, MOTIVO.MUY_SEGUIDO, 'menos de un segundo después');
-  sala.avanzar(1100);
-  await sala.motor.mensaje(a, codificarLoteria(ronda, 0xffff));
-  assert.equal(a.ultimo(T.RESULTADO).ok, true, 'después de un segundo sí cuenta');
+  assert.equal(a.ultimo(T.RESULTADO).ok, true);
 });
 
 test('la sala no escribe nada por jugador que elige tabla o entra', async () => {
@@ -177,4 +176,93 @@ test('los ganadores se guardan en lotes, no una fila por ganador', async () => {
   assert.ok(lotes.length <= 2, `filas de ganadores: ${lotes.length}`);
   const total = lotes.reduce((n, k) => n + Object.keys(sala.almacen.get(k) as object).length, 0);
   assert.equal(total, 50);
+});
+
+// ---- Falsa lotería: gritar sin la carta llena deja fuera de la ronda ----
+
+test('falsa lotería: queda descalificado y no puede volver a reclamar en la ronda', async () => {
+  const sala = crearSala();
+  const a = await sala.entra(TOKEN_A);
+  const ronda = a.ultimo(T.ESTADO).ronda;
+  await sala.tic();
+  await sala.motor.mensaje(a, codificarLoteria(ronda, 0xffff));
+  assert.equal(a.ultimo(T.RESULTADO).motivo, MOTIVO.DESCALIFICADO);
+  for (let i = 0; i < 15; i++) await sala.tic(); // su carta ya está llena de verdad
+  await sala.motor.mensaje(a, codificarLoteria(ronda, 0xffff));
+  assert.equal(a.ultimo(T.RESULTADO).motivo, MOTIVO.DESCALIFICADO);
+});
+
+test('las 16 cartas salieron pero no tiene frijol en todas: es falsa lotería', async () => {
+  const sala = crearSala();
+  const a = await sala.entra(TOKEN_A);
+  const ronda = a.ultimo(T.ESTADO).ronda;
+  for (let i = 0; i < 16; i++) await sala.tic();
+  await sala.motor.mensaje(a, codificarLoteria(ronda, 0x7fff)); // le falta un frijol
+  assert.equal(a.ultimo(T.RESULTADO).motivo, MOTIVO.DESCALIFICADO);
+});
+
+test('el descalificado sigue fuera aunque se reconecte con un pase válido', async () => {
+  const sala = crearSala();
+  const a = await sala.entra(TOKEN_A);
+  const ronda = a.ultimo(T.ESTADO).ronda;
+  await sala.tic();
+  await sala.motor.mensaje(a, codificarLoteria(ronda, 0xffff));
+  sala.sale(a);
+  const pase = aHex(calcularPase(SEMILLA, TOKEN_A, 0));
+  const otra = await sala.entra(TOKEN_A, { ronda, elegida: 0, pase });
+  const e = otra.ultimo(T.ESTADO);
+  assert.equal(e.espectador, false);
+  assert.equal(e.descalificado, true, 'el estado avisa que está fuera');
+  for (let i = 0; i < 15; i++) await sala.tic();
+  await sala.motor.mensaje(otra, codificarLoteria(ronda, 0xffff));
+  assert.equal(otra.ultimo(T.RESULTADO).motivo, MOTIVO.DESCALIFICADO);
+});
+
+test('la descalificación sobrevive a que la sala pierda su memoria', async () => {
+  const sala = crearSala();
+  const a = await sala.entra(TOKEN_A);
+  const ronda = a.ultimo(T.ESTADO).ronda;
+  await sala.tic();
+  await sala.motor.mensaje(a, codificarLoteria(ronda, 0xffff));
+  await sala.tic(); // el reloj guarda el lote de descalificados
+  sala.olvidar(); // como si el Durable Object hubiera dormido
+  const otra = await sala.entra(TOKEN_A);
+  assert.equal(otra.ultimo(T.ESTADO).descalificado, true);
+});
+
+test('muchos gritos falsos cuestan pocas filas: un lote por paso del reloj', async () => {
+  const sala = crearSala({}, 54);
+  const tramposos: ConexionFalsa[] = [];
+  for (let i = 0; i < 300; i++) tramposos.push(await sala.entra(i.toString(16).padStart(32, '0')));
+  const ronda = tramposos[0].ultimo(T.ESTADO).ronda;
+  await sala.tic();
+  const antes = sala.escrituras.length;
+  for (const c of tramposos) await sala.motor.mensaje(c, codificarLoteria(ronda, 0xffff));
+  await sala.tic();
+  const filas = sala.escrituras.slice(antes).filter((k) => k.startsWith('descalificados:'));
+  assert.ok(filas.length <= 2, `filas de descalificados: ${filas.length}`);
+  assert.deepEqual(sala.escrituras.filter((k) => /[0-9a-f]{32}/.test(k)), [], 'ninguna fila lleva un token en la clave');
+  for (const c of tramposos) assert.equal(c.ultimo(T.RESULTADO).motivo, MOTIVO.DESCALIFICADO);
+});
+
+test('en la ronda siguiente el descalificado vuelve a jugar', async () => {
+  const sala = crearSala();
+  const a = await sala.entra(TOKEN_A);
+  const ronda = a.ultimo(T.ESTADO).ronda;
+  await sala.tic();
+  await sala.motor.mensaje(a, codificarLoteria(ronda, 0xffff));
+  for (let i = 0; i < 17; i++) await sala.tic(); // termina la ronda (16 cartas + fin)
+  await sala.tic(); // nueva ronda
+  const e = a.ultimo(T.ESTADO);
+  assert.equal(e.ronda, ronda + 1);
+  assert.equal(e.descalificado, false);
+});
+
+test('gritar cuando la ronda ya terminó no descalifica', async () => {
+  const sala = crearSala();
+  const a = await sala.entra(TOKEN_A);
+  const ronda = a.ultimo(T.ESTADO).ronda;
+  for (let i = 0; i < 17; i++) await sala.tic(); // 16 cartas y fin de la gracia
+  await sala.motor.mensaje(a, codificarLoteria(ronda, 0xffff));
+  assert.equal(a.ultimo(T.RESULTADO).motivo, MOTIVO.FUERA_DE_RONDA);
 });

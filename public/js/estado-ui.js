@@ -6,7 +6,8 @@ export function textoBoton(s) {
   if (!s.conectado) return { texto: s.ronda ? 'Sin conexión' : 'Conectando…', deshabilitado: true };
   if (s.espectador) return { texto: 'Juegas en la siguiente ronda', deshabilitado: true };
   if (s.lugar) return { texto: `Ganaste: lugar ${s.lugar}`, deshabilitado: true };
-  if (s.esperandoResultado) return { texto: 'Revisando tu tabla…', deshabilitado: true };
+  if (s.descalificado) return { texto: 'Fuera de esta ronda', deshabilitado: true };
+  if (s.esperandoResultado) return { texto: 'Revisando tu carta…', deshabilitado: true };
   if (s.fase === FASE.ESPERA) return { texto: 'Espera la primera carta', deshabilitado: true };
   if (s.fase === FASE.TERMINADA) return { texto: 'Ronda terminada', deshabilitado: true };
   return { texto: '¡Lotería!', deshabilitado: false };

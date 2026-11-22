@@ -6,6 +6,9 @@ Cada historia vive también como issue en GitHub, dentro del milestone de su fas
 
 ## Decisiones que el plan da por tomadas
 
+- **Nombres en la interfaz:** la tabla de 16 casillas se llama "carta" ("Elige tu carta", "Llena toda tu carta"), y las que canta el gritón también son "cartas". En el código y en estos documentos técnicos sigue diciendo "tabla".
+- **Falsa lotería:** el frijol se pone en cualquier casilla. Gana quien grita con la carta llena: frijol en las 16 casillas y las 16 cartas ya cantadas. Quien grita sin eso queda descalificado el resto de la ronda, también si se reconecta. Los descalificados se guardan en lotes, a lo más una fila por paso del reloj.
+
 - **Juego:** pura llena. Gana quien llena las 16 cartas de su tabla. Baraja de 54 cartas con los nombres y el orden tradicionales, arte propio.
 - **Plataforma:** PWA móvil, sin instalación, distribuida por link.
 - **Servidor:** Cloudflare Workers y Durable Objects en el plan gratuito. Costo de cómputo 0 USD (RNF-13). Una sola sala para 5,000 jugadores (RNF-01); ruta documentada a 100,000 en el plan de pago sin reescribir código.

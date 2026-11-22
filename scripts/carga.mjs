@@ -12,6 +12,7 @@
 //   --duracion-s=600               tope de tiempo total
 //   --pid=1234                     PID del servidor local para medir CPU y memoria
 //   --salida=archivo.json          guarda el reporte completo
+//   --tramposos=0.05               fracción de clientes que grita ¡Lotería! en falso (quedan descalificados)
 //
 // Mide sin cambiar el protocolo: la latencia de difusión es la dispersión de llegada
 // de cada carta entre todos los clientes (última llegada menos primera).
@@ -39,7 +40,7 @@ function leerEstado(m) {
 }
 
 function opciones(argv) {
-  const o = { n: 500, url: 'ws://localhost:8787/ws', escenario: 'entrada', entradaS: 30, duracionS: 600, procesos: 0, salida: '', pid: 0 };
+  const o = { n: 500, url: 'ws://localhost:8787/ws', escenario: 'entrada', entradaS: 30, duracionS: 600, procesos: 0, salida: '', pid: 0, tramposos: 0 };
   for (const a of argv) {
     if (/^\d+$/.test(a)) o.n = Number(a);
     const [k, v] = a.replace(/^--/, '').split('=');
@@ -50,6 +51,7 @@ function opciones(argv) {
     if (k === 'procesos') o.procesos = Number(v);
     if (k === 'salida') o.salida = v;
     if (k === 'pid') o.pid = Number(v);
+    if (k === 'tramposos') o.tramposos = Math.min(1, Math.max(0, Number(v) || 0));
   }
   if (!['entrada', 'reconexion', 'cupo'].includes(o.escenario)) throw new Error(`Escenario desconocido: ${o.escenario}`);
   if (!o.procesos) o.procesos = Math.max(1, Math.ceil(o.n / 1000));
@@ -66,7 +68,7 @@ const percentil = (valores, p) => {
 // Proceso hijo: maneja un grupo de clientes
 // =====================================================================
 function hijo() {
-  const { url, inicio, cuantos, escenario, entradaS } = JSON.parse(process.env.CARGA_CONFIG);
+  const { url, inicio, cuantos, escenario, entradaS, tramposos = 0 } = JSON.parse(process.env.CARGA_CONFIG);
   const llegadas = {}; // "ronda:indice" -> [tiempos]
   const reclamos = []; // ms de LOTERIA a RESULTADO
   const cont = { conexiones: 0, fallidas: 0, desconexiones: 0, enviados: 0, ganadores: 0, rechazos: {} };
@@ -77,7 +79,7 @@ function hijo() {
 
   function crear(i) {
     const token = aHex(crypto.getRandomValues(new Uint8Array(16)));
-    const c = { i, token, ws: null, e: null, cantadas: [], marcadas: 0, gritado: false, envio: 0, reconecta: i % 2 === 0, reconectado: false, vivo: false };
+    const c = { i, token, ws: null, e: null, cantadas: [], marcadas: 0, gritado: false, envio: 0, reconecta: i % 2 === 0, reconectado: false, vivo: false, tramposo: Math.random() < tramposos };
     clientes.push(c);
     conectar(c);
   }
@@ -131,7 +133,10 @@ function hijo() {
         setTimeout(() => conectar(c), Math.random() * 3000);
         return;
       }
-      if (!c.gritado && c.marcadas === 0xffff) {
+      // Un tramposo grita en falso a media ronda, con frijoles en las 16 casillas: la sala lo descalifica.
+      const gritaEnFalso = c.tramposo && !c.gritado && m.indice === Math.floor(c.e.catalogo / 3) && c.marcadas !== 0xffff;
+      if (gritaEnFalso) c.marcadas = 0xffff;
+      if (!c.gritado && (gritaEnFalso || c.marcadas === 0xffff)) {
         c.gritado = true;
         // Reflejos humanos: tarda entre 0.3 y 2.5 s en gritar.
         setTimeout(() => {
@@ -193,7 +198,7 @@ function cpuServidor(pid) {
 
 async function padre() {
   const o = opciones(process.argv.slice(2));
-  console.log(`Carga: ${o.n} clientes, escenario ${o.escenario}, ${o.procesos} procesos, contra ${o.url}`);
+  console.log(`Carga: ${o.n} clientes, escenario ${o.escenario}, ${o.procesos} procesos, ${Math.round(o.tramposos * 100)}% tramposos, contra ${o.url}`);
   const inicioPrueba = ahora();
   const hijos = [];
   const porHijo = Math.ceil(o.n / o.procesos);
@@ -210,7 +215,7 @@ async function padre() {
     const cuantos = Math.min(porHijo, o.n - h * porHijo);
     if (cuantos <= 0) break;
     const proceso = fork(fileURLToPath(import.meta.url), [], {
-      env: { ...process.env, CARGA_ROL: 'hijo', CARGA_CONFIG: JSON.stringify({ url: o.url, inicio: h * porHijo, cuantos, escenario: o.escenario, entradaS: o.entradaS }) },
+      env: { ...process.env, CARGA_ROL: 'hijo', CARGA_CONFIG: JSON.stringify({ url: o.url, inicio: h * porHijo, cuantos, escenario: o.escenario, entradaS: o.entradaS, tramposos: o.tramposos }) },
     });
     hijos.push(proceso);
     proceso.on('message', (msg) => {

@@ -144,32 +144,27 @@ test('al reconectar durante el canto con su pase se conserva la tabla elegida', 
 });
 
 test('el reclamo se valida contra la tabla elegida, no contra otra', async () => {
-  const sala = crearSala({}, 20);
-  const a = await sala.entra(TOKEN_A);
-  const ronda = a.ultimo(T.ESTADO).ronda;
-  const baraja = barajar(new Uint8Array(32).fill(9), 20);
-  // Carta con la que se llena cada tabla ofrecida.
-  const llenaEn = [0, 1, 2].map((i) => {
-    const tabla = tablaDe(TOKEN_A, ronda, 20, i);
-    return Math.max(...tabla.map((c) => baraja.indexOf(c))) + 1;
-  });
-  const orden = [0, 1, 2].sort((x, y) => llenaEn[x] - llenaEn[y]);
-  const [primera, , ultima] = orden;
-  assert.ok(llenaEn[primera] < llenaEn[ultima], 'con esta semilla las tablas se llenan en momentos distintos');
-  await sala.motor.mensaje(a, codificarElijo(ronda, ultima));
-  for (let i = 1; i <= 20; i++) {
-    await sala.tic();
-    if (i === llenaEn[primera]) {
-      await sala.motor.mensaje(a, codificarLoteria(ronda, 0xffff));
-      assert.equal(a.ultimo(T.RESULTADO).motivo, MOTIVO.INCOMPLETA, 'otra tabla llena no cuenta');
-    }
-    if (i === llenaEn[ultima]) {
-      await sala.motor.mensaje(a, codificarLoteria(ronda, 0xffff));
-      assert.equal(a.ultimo(T.RESULTADO).ok, true, 'la tabla elegida llena gana');
-      return;
-    }
+  // Dos salas con la misma semilla: en una el jugador grita cuando se llenó otra de sus
+  // tablas ofrecidas (falsa lotería), en la otra grita cuando se llena la que eligió.
+  const llenaEnDe = (ronda: number) => {
+    const baraja = barajar(new Uint8Array(32).fill(9), 20);
+    return [0, 1, 2].map((i) => Math.max(...tablaDe(TOKEN_A, ronda, 20, i).map((c) => baraja.indexOf(c))) + 1);
+  };
+  for (const gritaCon of ['otra', 'elegida'] as const) {
+    const sala = crearSala({}, 20);
+    const a = await sala.entra(TOKEN_A);
+    const ronda = a.ultimo(T.ESTADO).ronda;
+    const llenaEn = llenaEnDe(ronda);
+    const orden = [0, 1, 2].sort((x, y) => llenaEn[x] - llenaEn[y]);
+    const [primera, , ultima] = orden;
+    assert.ok(llenaEn[primera] < llenaEn[ultima], 'con esta semilla las tablas se llenan en momentos distintos');
+    await sala.motor.mensaje(a, codificarElijo(ronda, ultima));
+    const momento = gritaCon === 'otra' ? llenaEn[primera] : llenaEn[ultima];
+    for (let i = 1; i <= momento; i++) await sala.tic();
+    await sala.motor.mensaje(a, codificarLoteria(ronda, 0xffff));
+    if (gritaCon === 'otra') assert.equal(a.ultimo(T.RESULTADO).motivo, MOTIVO.DESCALIFICADO, 'otra tabla llena es falsa lotería');
+    else assert.equal(a.ultimo(T.RESULTADO).ok, true, 'la tabla elegida llena gana');
   }
-  assert.fail('la tabla elegida nunca se llenó');
 });
 
 test('quien llega con la ronda cantándose es espectador y no puede reclamar', async () => {
