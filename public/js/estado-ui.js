@@ -32,6 +32,9 @@ const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'o
  * Etiqueta de una ronda reciente para el selector de verificar.html:
  * "Ronda 12 · 21 nov · 3 ganadores". Toma la fecha de la clave (AAAA-MM-DD/…) si no viene aparte.
  */
+/**
+ * @param {{ clave?: string, ronda: number, fecha?: string | null, ganadores: number }} reciente
+ */
 export function textoRondaReciente({ clave = '', ronda, fecha = null, ganadores }) {
   const iso = String(fecha ?? clave).slice(0, 10);
   const [, mes, dia] = iso.split('-').map(Number);
