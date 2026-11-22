@@ -71,7 +71,7 @@ async function cantarHastaLlenar(sala: ReturnType<typeof crearSala>, c: Conexion
 test('#42: el mismo token en dos conexiones gana un solo lugar', async () => {
   const sala = crearSala();
   const uno = await sala.entra(TOKEN_A);
-  const dos = await sala.entra(TOKEN_A, { ronda: 1, elegida: 0 });
+  const dos = await sala.entra(TOKEN_A, { ronda: 1, carta: 0 });
   const ronda = await cantarHastaLlenar(sala, uno);
   await sala.motor.mensaje(uno, codificarLoteria(ronda, 0xffff));
   await sala.motor.mensaje(dos, codificarLoteria(ronda, 0xffff));
@@ -93,10 +93,10 @@ test('#43: quien no eligió tabla y recarga durante el canto sigue jugando con s
   sala.sale(a);
   await sala.tic(); // empieza el canto
   await sala.tic();
-  const otra = await sala.entra(TOKEN_A, { ronda: e0.ronda, elegida: 0, pase });
+  const otra = await sala.entra(TOKEN_A, { ronda: e0.ronda, carta: 0, pase });
   const e = otra.ultimo(T.ESTADO);
   assert.equal(e.espectador, false);
-  assert.deepEqual(e.tabla, tablaDe(TOKEN_A, e0.ronda, 16, 0));
+  assert.deepEqual(e.tabla, tablaDe(TOKEN_A, 0, 16));
   assert.ok(e.pase, 'el ESTADO del canto también trae el pase');
 });
 
@@ -108,10 +108,10 @@ test('#44: con la ronda en la URL pero sin pase válido se entra como espectador
   sala.sale(a);
   await sala.tic(); // canto
   for (const reanudar of [
-    { ronda: e0.ronda, elegida: 0 },
-    { ronda: e0.ronda, elegida: 0, pase: '00'.repeat(16) },
-    { ronda: e0.ronda, elegida: 1, pase: aHex(e0.pase) }, // pase de otra tabla
-    { ronda: e0.ronda, elegida: 0, pase: aHex(calcularPase(SEMILLA, TOKEN_B, 0)) }, // pase de otro jugador
+    { ronda: e0.ronda, carta: 0 },
+    { ronda: e0.ronda, carta: 0, pase: '00'.repeat(16) },
+    { ronda: e0.ronda, carta: 1, pase: aHex(e0.pase) }, // pase de otra carta
+    { ronda: e0.ronda, carta: 0, pase: aHex(calcularPase(SEMILLA, TOKEN_B, 0)) }, // pase de otro jugador
   ]) {
     const c = await sala.entra(TOKEN_A, reanudar);
     assert.equal(c.ultimo(T.ESTADO).espectador, true, JSON.stringify(reanudar));
@@ -119,7 +119,7 @@ test('#44: con la ronda en la URL pero sin pase válido se entra como espectador
     assert.equal(c.ultimo(T.RESULTADO).motivo, MOTIVO.ESPECTADOR);
     sala.sale(c);
   }
-  const buena = await sala.entra(TOKEN_A, { ronda: e0.ronda, elegida: 0, pase: aHex(e0.pase) });
+  const buena = await sala.entra(TOKEN_A, { ronda: e0.ronda, carta: 0, pase: aHex(e0.pase) });
   assert.equal(buena.ultimo(T.ESTADO).espectador, false);
 });
 
@@ -130,7 +130,7 @@ test('#44: un pase de la ronda anterior no sirve en la siguiente', async () => {
   const e0 = a.ultimo(T.ESTADO);
   for (let i = 0; i < 7; i++) await sala.tic(); // 4 cartas, gracia, fin, nueva ronda y canto
   sala.sale(a);
-  const c = await sala.entra(TOKEN_A, { ronda: e0.ronda, elegida: 0, pase: aHex(e0.pase) });
+  const c = await sala.entra(TOKEN_A, { ronda: e0.ronda, carta: 0, pase: aHex(e0.pase) });
   const e = c.ultimo(T.ESTADO);
   assert.notEqual(e.ronda, e0.ronda);
 });
@@ -209,7 +209,7 @@ test('el descalificado sigue fuera aunque se reconecte con un pase válido', asy
   await sala.motor.mensaje(a, codificarLoteria(ronda, 0xffff));
   sala.sale(a);
   const pase = aHex(calcularPase(SEMILLA, TOKEN_A, 0));
-  const otra = await sala.entra(TOKEN_A, { ronda, elegida: 0, pase });
+  const otra = await sala.entra(TOKEN_A, { ronda, carta: 0, pase });
   const e = otra.ultimo(T.ESTADO);
   assert.equal(e.espectador, false);
   assert.equal(e.descalificado, true, 'el estado avisa que está fuera');

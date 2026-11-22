@@ -215,6 +215,14 @@ a:hover { color: var(--tinta); }
 .frijol-sombra { position: absolute; left: 10%; right: 10%; bottom: -10%; height: 34%; border-radius: 50%; background: var(--tinta); opacity: 0.3; }
 .cae .frijol-cuerpo { animation: caer 420ms cubic-bezier(.3, .7, .4, 1) both; }
 .cae .frijol-sombra { animation: sombra 420ms ease-out both; }
+/* Easter egg: los frijoles salen volando de la carta. */
+.frijol.vuela { animation: vuela 700ms cubic-bezier(.2, .6, .4, 1) forwards; z-index: 2; }
+.frijol.vuela .frijol-sombra { display: none; }
+@keyframes vuela {
+  0% { transform: translate(-50%, -50%) rotate(0); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, -200px))) rotate(var(--giro, 360deg)); opacity: 0; }
+}
 @keyframes caer {
   0% { transform: translateY(-70px) rotate(-150deg) scale(1.35); opacity: 0; }
   35% { opacity: 1; }
@@ -385,6 +393,7 @@ a:hover { color: var(--tinta); }
 @media (prefers-reduced-motion: reduce) {
   .cae .frijol-cuerpo { animation: aparece 150ms ease-out both; }
   .cae .frijol-sombra, .sacude, .entra { animation: none; }
+  .frijol.vuela { animation: none; display: none; }
   /* Sin movimiento, la cuenta en texto basta: la raya se quita en lugar de quedarse a medias. */
   .mensaje.urgente::after { display: none; }
 }

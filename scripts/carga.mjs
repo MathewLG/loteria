@@ -35,7 +35,8 @@ function leerEstado(m) {
     cantadas: m.cantadas,
     lugar: m.lugar ?? 0,
     // Pase firmado por la sala: al reconectar evita entrar como espectador.
-    pase: m.pase ? { ronda: m.ronda, elegida: m.elegida ?? 0, hex: aHex(m.pase) } : null,
+    carta: m.numeroCarta ?? 0,
+    pase: m.pase ? { ronda: m.ronda, carta: m.numeroCarta ?? 0, hex: aHex(m.pase) } : null,
   };
 }
 
@@ -88,7 +89,7 @@ function hijo() {
     let ws;
     try {
       const p = c.e?.pase;
-      ws = new WebSocket(`${url}?t=${c.token}${p ? `&r=${p.ronda}&e=${p.elegida}&p=${p.hex}` : ''}`);
+      ws = new WebSocket(`${url}?t=${c.token}&c=${c.e?.carta ?? 0}${p ? `&r=${p.ronda}&p=${p.hex}` : ''}`);
     } catch {
       cont.fallidas += 1;
       return;

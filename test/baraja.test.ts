@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { aHex, barajar, chacha20Bloque, deHex, sha256, tablaDe } from '../public/js/baraja.js';
+import { aHex, barajar, chacha20Bloque, deHex, numeroDeCarta, numerosOfrecidos, sha256, tablaDe } from '../public/js/baraja.js';
 
 test('sha256 coincide con node:crypto, incluidos los bordes del relleno', () => {
   for (const largo of [0, 3, 55, 56, 63, 64, 65, 200]) {
@@ -29,10 +29,15 @@ test('barajar es una permutación y es determinista', () => {
   assert.notDeepEqual(barajar(sha256(new TextEncoder().encode('otra')), 54), a);
 });
 
-test('la tabla depende del token y de la ronda', () => {
+test('la carta depende del token y del número de carta, no de la ronda', () => {
   const token = '0123456789abcdef0123456789abcdef';
   const t1 = tablaDe(token, 1, 16);
   assert.equal(new Set(t1).size, 16);
   assert.deepEqual(tablaDe(token, 1, 16), t1);
   assert.notDeepEqual(tablaDe(token, 2, 16), t1);
+  assert.notDeepEqual(tablaDe('f'.repeat(32), 1, 16), t1);
+  assert.deepEqual(tablaDe(token, 1001, 16), t1, 'el número se normaliza a 0..999');
+  assert.deepEqual(numerosOfrecidos(998), [998, 999, 0]);
+  assert.equal(numeroDeCarta(-3), 0);
+  assert.equal(numeroDeCarta('x'), 0);
 });

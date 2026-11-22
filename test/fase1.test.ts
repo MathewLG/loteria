@@ -59,13 +59,15 @@ test('el formato de ESTADO ida y vuelta conserva tablas, banderas y elección', 
   const tablas = [Array.from({ length: 16 }, (_, i) => i + 1), Array.from({ length: 16 }, (_, i) => i + 20)];
   const b = codificarEstado({
     ronda: 7, fase: FASE.TERMINADA, figura: 0, catalogo: 54, msSiguiente: 1234, jugadores: 9, ganadores: 2,
-    lugar: 1, espectador: true, elegida: 1, huella: new Uint8Array(32).fill(3), tablas,
+    lugar: 1, espectador: true, elegida: 1, base: 997, huella: new Uint8Array(32).fill(3), tablas,
     cantadas: [5, 6, 7], semilla: new Uint8Array(32).fill(4),
   });
-  assert.equal(b.length, 24 + 32 + 2 * 16 + 3 + 32);
+  assert.equal(b.length, 26 + 32 + 2 * 16 + 3 + 32);
   const m = decodificar(b) as any;
   assert.equal(m.espectador, true);
   assert.equal(m.elegida, 1);
+  assert.equal(m.base, 997);
+  assert.equal(m.numeroCarta, 998);
   assert.deepEqual(m.tablas, tablas);
   assert.deepEqual(m.cantadas, [5, 6, 7]);
   assert.equal(aHex(m.semilla), '04'.repeat(32));
@@ -79,7 +81,7 @@ test('en la espera se ofrecen 3 tablas distintas y deterministas', async () => {
   const unicas = new Set(e.tablas.map((t: number[]) => t.join(',')));
   assert.equal(unicas.size, 3);
   for (const t of e.tablas) assert.equal(new Set(t).size, 16);
-  assert.deepEqual(e.tablas[2], tablaDe(TOKEN_A, e.ronda, 54, 2));
+  assert.deepEqual(e.tablas[2], tablaDe(TOKEN_A, 2, 54));
   assert.equal(e.elegida, 0);
   assert.equal(e.espectador, false);
 });
@@ -121,12 +123,12 @@ test('al cantar, ESTADO trae solo la tabla elegida', async () => {
   await sala.motor.mensaje(a, codificarElijo(ronda, 1));
   const pase = aHex(a.ultimo(T.ELECCION).pase);
   await sala.tic();
-  const otra = await sala.entra(TOKEN_A, { ronda, elegida: 1, pase });
+  const otra = await sala.entra(TOKEN_A, { ronda, carta: 1, pase });
   const e = otra.ultimo(T.ESTADO);
   assert.equal(e.fase, FASE.CANTANDO);
   assert.equal(e.tablas.length, 1);
-  assert.equal(e.elegida, 1);
-  assert.deepEqual(e.tabla, tablaDe(TOKEN_A, ronda, 54, 1));
+  assert.equal(e.numeroCarta, 1);
+  assert.deepEqual(e.tabla, tablaDe(TOKEN_A, 1, 54));
 });
 
 test('al reconectar durante el canto con su pase se conserva la tabla elegida', async () => {
@@ -137,10 +139,10 @@ test('al reconectar durante el canto con su pase se conserva la tabla elegida', 
   const pase = aHex(a.ultimo(T.ELECCION).pase);
   sala.sale(a);
   await sala.tic();
-  const otra = await sala.entra(TOKEN_A, { ronda, elegida: 2, pase });
+  const otra = await sala.entra(TOKEN_A, { ronda, carta: 2, pase });
   const e = otra.ultimo(T.ESTADO);
   assert.equal(e.espectador, false);
-  assert.equal(e.elegida, 2);
+  assert.equal(e.numeroCarta, 2);
 });
 
 test('el reclamo se valida contra la tabla elegida, no contra otra', async () => {
@@ -148,7 +150,7 @@ test('el reclamo se valida contra la tabla elegida, no contra otra', async () =>
   // tablas ofrecidas (falsa lotería), en la otra grita cuando se llena la que eligió.
   const llenaEnDe = (ronda: number) => {
     const baraja = barajar(new Uint8Array(32).fill(9), 20);
-    return [0, 1, 2].map((i) => Math.max(...tablaDe(TOKEN_A, ronda, 20, i).map((c) => baraja.indexOf(c))) + 1);
+    return [0, 1, 2].map((i) => Math.max(...tablaDe(TOKEN_A, i, 20).map((c) => baraja.indexOf(c))) + 1);
   };
   for (const gritaCon of ['otra', 'elegida'] as const) {
     const sala = crearSala({}, 20);
@@ -199,7 +201,7 @@ test('quien vuelve a su misma ronda con el pase de la espera no es espectador', 
   assert.ok(e0.pase, 'en la espera ESTADO ya trae el pase de la tabla 0');
   sala.sale(a);
   await sala.tic();
-  const otra = await sala.entra(TOKEN_A, { ronda: e0.ronda, elegida: 0, pase: aHex(e0.pase) });
+  const otra = await sala.entra(TOKEN_A, { ronda: e0.ronda, carta: 0, pase: aHex(e0.pase) });
   assert.equal(otra.ultimo(T.ESTADO).espectador, false);
 });
 

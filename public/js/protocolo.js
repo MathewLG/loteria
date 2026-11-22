@@ -54,10 +54,12 @@ export function mascaraCantadas(tabla, cantadas) {
  *  19-20 tu lugar, 0 si no has ganado (u16)
  *  21    banderas: bit 0 = trae semilla, bit 1 = eres espectador, bit 2 = trae pase (espera y canto, nunca a espectadores),
  *        bit 3 = quedaste descalificado en esta ronda por gritar en falso
- *  22    índice de la tabla elegida (0..2)
+ *  22    índice de la tabla elegida (0..2) entre las ofrecidas
  *  23    t: tablas que siguen. 3 en la espera (las ofrecidas, en orden de índice),
  *        1 al cantar o terminar (solo la elegida), 0 si eres espectador
- *  24-55 huella SHA-256 de la semilla (32)
+ *  24-25 base: número de carta (0..999) de la primera ofrecida (u16). La carta en juego es
+ *        (base + índice) mod 1000; el cliente la guarda para conservarla en la siguiente ronda
+ *  26-57 huella SHA-256 de la semilla (32)
  *  ...   16 bytes: tu pase de la ronda, solo si la bandera 2 está prendida (ver ELECCION)
  *  ...   t × 16 bytes: tablas, una carta por byte, en orden de casilla
  *  ...   n bytes: cartas cantadas en orden
@@ -65,7 +67,7 @@ export function mascaraCantadas(tabla, cantadas) {
  */
 export const BANDERA = { SEMILLA: 1, ESPECTADOR: 2, PASE: 4, DESCALIFICADO: 8 };
 export const LARGO_PASE = 16;
-const CABECERA_ESTADO = 24;
+const CABECERA_ESTADO = 26;
 
 export function codificarEstado(e) {
   const conSemilla = e.fase === FASE.TERMINADA && e.semilla;
@@ -87,6 +89,7 @@ export function codificarEstado(e) {
   v.setUint8(21, (conSemilla ? BANDERA.SEMILLA : 0) | (e.espectador ? BANDERA.ESPECTADOR : 0) | (conPase ? BANDERA.PASE : 0) | (e.descalificado ? BANDERA.DESCALIFICADO : 0));
   v.setUint8(22, e.elegida ?? 0);
   v.setUint8(23, tablas.length);
+  v.setUint16(24, e.base ?? 0, true);
   let p = CABECERA_ESTADO;
   b.set(e.huella, p); p += 32;
   if (conPase) { b.set(e.pase, p); p += LARGO_PASE; }
@@ -102,8 +105,9 @@ export function codificarEstado(e) {
  * Si la sala rechaza el cambio, ok = 0 y vienen el índice y el pase que siguen vigentes.
  *
  * El pase es lo que el jugador guarda para volver a su ronda (también tras recargar la página):
- * al reconectar lo manda en la URL como &r=ronda&e=elegida&p=pase en hex. Son los primeros 16 bytes
- * de SHA-256("pase:" + semilla + ":" + token + ":" + elegida). Nadie lo puede falsificar porque
+ * al reconectar lo manda en la URL como &c=carta&r=ronda&p=pase en hex, donde carta es el número de
+ * carta en juego (base + índice). Son los primeros 16 bytes de
+ * SHA-256("pase:" + semilla + ":" + token + ":" + número de carta). Nadie lo puede falsificar porque
  * la semilla es secreta hasta el final de la ronda, y la sala no necesita guardar nada por jugador.
  * Un espectador recibe 16 ceros.
  */
@@ -197,6 +201,7 @@ export function decodificar(datos) {
         const conSemilla = (banderas & BANDERA.SEMILLA) !== 0;
         const conPase = (banderas & BANDERA.PASE) !== 0;
         const elegida = v.getUint8(22);
+        const base = v.getUint16(24, true);
         const t = v.getUint8(23);
         const esperado = CABECERA_ESTADO + 32 + (conPase ? LARGO_PASE : 0) + t * 16 + n + (conSemilla ? 32 : 0);
         if (b.length !== esperado || t > 3) return null;
@@ -214,7 +219,7 @@ export function decodificar(datos) {
           tipo, ronda: v.getUint16(1, true), fase: v.getUint8(3), figura: v.getUint8(4),
           catalogo: v.getUint8(5), msSiguiente: v.getUint32(7, true), jugadores: v.getUint32(11, true),
           ganadores: v.getUint32(15, true), lugar: v.getUint16(19, true),
-          espectador: (banderas & BANDERA.ESPECTADOR) !== 0, descalificado: (banderas & BANDERA.DESCALIFICADO) !== 0, elegida, tablas, tabla, huella, pase, cantadas, semilla,
+          espectador: (banderas & BANDERA.ESPECTADOR) !== 0, descalificado: (banderas & BANDERA.DESCALIFICADO) !== 0, elegida, base, numeroCarta: (base + elegida) % 1000, tablas, tabla, huella, pase, cantadas, semilla,
         };
       }
       case T.ELECCION: {

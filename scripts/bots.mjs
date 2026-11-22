@@ -25,27 +25,33 @@ function crearBot(numero) {
     setTimeout(() => ws.readyState === WebSocket.OPEN && ws.send(codificarLoteria(b.ronda, b.marcadas)), azar(200, 1500));
   };
 
+  // Cada bot conserva su carta entre rondas, como un jugador real.
+  let carta = Math.floor(Math.random() * 1000);
+  let base = carta;
   const conectar = () => {
     // Con el pase firmado por la sala, el bot vuelve a su ronda sin quedar de espectador.
-    const vuelta = pase ? `&r=${pase.ronda}&e=${pase.elegida}&p=${pase.hex}` : '';
+    const vuelta = `&c=${carta}` + (pase && pase.carta === carta ? `&r=${pase.ronda}&p=${pase.hex}` : '');
     ws = new WebSocket(`${URL_SALA}?t=${token}${vuelta}`);
     ws.binaryType = 'arraybuffer';
     ws.addEventListener('message', (evento) => {
       const m = decodificar(evento.data);
       if (!m) return;
       if (m.tipo === T.ESTADO) {
-        if (m.pase) pase = { ronda: m.ronda, elegida: m.elegida, hex: aHex(m.pase) };
+        base = m.base ?? 0;
+        if (m.tablas.length) carta = m.numeroCarta ?? 0;
+        if (m.pase) pase = { ronda: m.ronda, carta, hex: aHex(m.pase) };
         b = {
           ronda: m.ronda, fase: m.fase, figura: m.figura, tablas: m.tablas, tabla: m.tabla, cantadas: m.cantadas,
           marcadas: mascaraCantadas(m.tabla, m.cantadas), gritando: false, gano: m.lugar > 0, espectador: m.espectador,
         };
-        // En la espera, cada bot escoge una de las tres tablas al azar.
-        if (m.fase === FASE.ESPERA && m.tablas.length === 3) {
-          const indice = Math.floor(Math.random() * 3);
+        // En la espera casi todos conservan su carta; uno de cada cinco la cambia.
+        if (m.fase === FASE.ESPERA && m.tablas.length === 3 && Math.random() < 0.2) {
+          const indice = 1 + Math.floor(Math.random() * 2);
           setTimeout(() => ws.readyState === WebSocket.OPEN && ws.send(codificarElijo(b.ronda, indice)), azar(100, 1000));
         }
       } else if (m.tipo === T.ELECCION && m.ok) {
-        if (m.pase) pase = { ronda: b.ronda, elegida: m.indice, hex: aHex(m.pase) };
+        if (m.ok) carta = (base + m.indice) % 1000;
+        if (m.pase) pase = { ronda: b.ronda, carta: (base + m.indice) % 1000, hex: aHex(m.pase) };
         b.tabla = b.tablas[m.indice] ?? b.tabla;
         b.marcadas = mascaraCantadas(b.tabla, b.cantadas);
       } else if (m.tipo === T.CARTA && m.ronda === b.ronda) {
