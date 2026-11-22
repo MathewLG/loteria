@@ -2,7 +2,7 @@
 // mientras nadie manda nada, el objeto puede dormir sin cerrar las conexiones.
 
 import { DurableObject } from 'cloudflare:workers';
-import { Motor, TOKEN_VALIDO, type Adjunto, type Conexion, type Config, type RegistroRonda } from './motor.ts';
+import { Motor, TOKEN_VALIDO, reanudarDeUrl, type Adjunto, type Conexion, type Config, type RegistroRonda } from './motor.ts';
 
 export interface Env {
   SALA: DurableObjectNamespace<Sala>;
@@ -66,6 +66,7 @@ export class Sala extends DurableObject<Env> {
         hayAlarma: async () => (await almacen.getAlarm()) !== null,
         leer: (clave) => almacen.get(clave),
         escribir: (clave, valor) => almacen.put(clave, valor),
+        leerPrefijo: async <V>(prefijo: string) => (await almacen.list<V>({ prefix: prefijo })) as Map<string, V>,
         borrarPrefijo: async (prefijo) => {
           const claves = [...(await almacen.list({ prefix: prefijo })).keys()];
           for (let i = 0; i < claves.length; i += 128) await almacen.delete(claves.slice(i, i + 128));
@@ -79,6 +80,11 @@ export class Sala extends DurableObject<Env> {
             const opciones = { httpMetadata: { contentType: 'application/json' } };
             await rondas.put(clave, cuerpo, opciones);
             await rondas.put('rondas/ultima.json', cuerpo, opciones);
+            // Índice de las 20 rondas más recientes, para el selector de verificar.html.
+            const previo = await rondas.get('rondas/recientes.json');
+            const lista: unknown[] = previo ? await previo.json() : [];
+            const entrada = { clave: clave.slice('rondas/'.length, -'.json'.length), ronda: registro.ronda, fecha: new Date(registro.fin).toISOString(), ganadores: registro.ganadores };
+            await rondas.put('rondas/recientes.json', JSON.stringify([entrada, ...lista].slice(0, 20)), opciones);
           }
           : undefined,
       },
@@ -90,7 +96,6 @@ export class Sala extends DurableObject<Env> {
     const url = new URL(peticion.url);
     const token = url.searchParams.get('t') ?? '';
     if (!TOKEN_VALIDO.test(token)) return new Response('Token inválido', { status: 400 });
-    const rondaPrevia = Number.parseInt(url.searchParams.get('r') ?? '0', 10) || 0;
 
     const rechazo = await this.motor.admitir();
     if (rechazo) {
@@ -112,7 +117,7 @@ export class Sala extends DurableObject<Env> {
     const par = new WebSocketPair();
     const [cliente, servidor] = [par[0], par[1]];
     this.ctx.acceptWebSocket(servidor);
-    await this.motor.conectar(conexionDe(servidor), token, rondaPrevia);
+    await this.motor.conectar(conexionDe(servidor), token, reanudarDeUrl(url));
     return new Response(null, { status: 101, webSocket: cliente });
   }
 

@@ -1,4 +1,4 @@
-Cierra #
+Closes #
 
 **Qué cambia**
 

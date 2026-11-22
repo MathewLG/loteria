@@ -31,6 +31,10 @@ export default {
     if (url.pathname.startsWith('/api/rondas/') && peticion.method === 'GET') {
       const resto = decodeURIComponent(url.pathname.slice('/api/rondas/'.length));
       if (resto === 'ultima') return leerRonda(env, 'rondas/ultima.json');
+      if (resto === 'recientes') {
+        const r = await leerRonda(env, 'rondas/recientes.json');
+        return r.status === 404 ? json('[]') : r;
+      }
       if (CLAVE_RONDA.test(resto)) return leerRonda(env, `rondas/${resto}.json`);
       return json(null, 404);
     }
