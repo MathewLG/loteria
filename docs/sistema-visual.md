@@ -60,3 +60,8 @@ Reglas:
 
 - El frijol cae, rebota y queda chueco (420 ms). La carta cantada entra con un giro corto.
 - Con `prefers-reduced-motion`, el frijol solo aparece y las demás animaciones se quitan.
+
+
+## Gritos del cantor
+
+Solo usamos gritos documentados en fuentes de dominio público. Hoy son seis, todos de Antonio García Cubas, *El libro de mis recuerdos* (1904), p. 351: El Gallo, El Diablito, La Dama, El Catrín, La Muerte y El Sol. Las demás cartas se cantan con su nombre. La lista de 54 versos que circula en sitios modernos no se usa: al menos una nota periodística la atribuye a un autor contemporáneo. Si aparecen fuentes antiguas verificables, se agregan en `public/js/versos.js` con su referencia.
