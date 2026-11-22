@@ -4,7 +4,7 @@ import {
 import { aHex, igualesBytes } from './baraja.js';
 import { NOMBRES, SVG_FRIJOL, svgCarta, svgReverso } from './cartas.js';
 import { RACHA_VACIA, registrarToque } from './frijoles.js';
-import { VERSOS } from './versos.js';
+import { gritoPara } from './versos.js';
 import { generarApodo } from './apodos.js';
 import { agacharMusica, sonar } from './audio.js';
 import './menu-audio.js';
@@ -253,7 +253,7 @@ function manejar(m) {
       s.msEntreCartas = m.msSiguiente || s.msEntreCartas;
       s.limite = Date.now() + m.msSiguiente;
       ui.eleccion.hidden = true;
-      anunciar(`Salió ${NOMBRES[m.carta - 1]}. ${VERSOS[m.carta - 1] ?? ''}`);
+      anunciar(`Salió ${NOMBRES[m.carta - 1]}. ${gritoPara(m.carta, s.huella) ?? ''}`);
       agacharMusica();
       sonar('carta');
       pintarCantor(true);
@@ -681,7 +681,7 @@ function pintarCantor(animar) {
     ui.cantorCarta.classList.add('entra');
   }
   ui.cantorNombre.textContent = NOMBRES[ultima - 1];
-  ui.cantorVerso.textContent = VERSOS[ultima - 1] ?? '';
+  ui.cantorVerso.textContent = gritoPara(ultima, s.huella) ?? '';
   if (s.fase === FASE.CANTANDO) {
     // Tras la última carta la sala da unos segundos de gracia para gritar: la barra los cuenta.
     if (enGracia()) pintarCuentaGracia();

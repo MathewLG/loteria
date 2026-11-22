@@ -1,22 +1,34 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FUENTE, VERSOS } from '../public/js/versos.js';
+import { FUENTES, GRITOS, gritoPara } from '../public/js/versos.js';
 import { NOMBRES } from '../public/js/cartas.js';
 import { ADJETIVOS, SUSTANTIVOS, armarApodo, generarApodo } from '../public/js/apodos.js';
 
-test('los gritos son solo los documentados, uno por carta o ninguno', () => {
-  assert.equal(VERSOS.length, 54);
-  assert.equal(VERSOS.length, NOMBRES.length);
-  const documentados = VERSOS.filter((v) => v !== null);
-  assert.equal(documentados.length, 6, 'solo los seis de García Cubas (1904)');
-  for (const verso of documentados) {
-    assert.ok(verso.trim().length > 0);
-    assert.ok(verso.length <= 80, `verso largo: ${verso}`);
-    assert.ok(!verso.includes('—'), `guion largo: ${verso}`);
+test('cada frase del cantor es corta, con origen conocido y sin guion largo', () => {
+  for (const [carta, frases] of Object.entries(GRITOS)) {
+    const n = Number(carta);
+    assert.ok(n >= 1 && n <= NOMBRES.length, `carta fuera de rango: ${carta}`);
+    assert.ok(frases.length > 0);
+    assert.equal(new Set(frases.map((f) => f.texto)).size, frases.length, `frases repetidas en ${carta}`);
+    for (const f of frases) {
+      assert.ok(f.texto.trim().length > 0);
+      assert.ok(f.texto.length <= 80, `frase larga: ${f.texto}`);
+      assert.ok(!f.texto.includes('—'), `guion largo: ${f.texto}`);
+      assert.ok(f.fuente in FUENTES, `fuente desconocida: ${f.fuente}`);
+    }
   }
-  assert.equal(VERSOS[0], 'El que le cantó a San Pedro.');
-  assert.equal(VERSOS[45], 'El abrigo de los pobres.');
-  assert.match(FUENTE.obra, /García Cubas/);
+  assert.equal(GRITOS[1][0].texto, 'El que le cantó a San Pedro.');
+});
+
+test('todos los jugadores ven la misma frase en una ronda', () => {
+  const huella = new Uint8Array(32).map((_, i) => i * 13);
+  for (let carta = 1; carta <= NOMBRES.length; carta++) {
+    assert.equal(gritoPara(carta, huella), gritoPara(carta, huella));
+    const frases = GRITOS[carta] ?? [];
+    const g = gritoPara(carta, huella);
+    if (frases.length === 0) assert.equal(g, null);
+    else assert.ok(frases.some((f) => f.texto === g));
+  }
 });
 
 test('generarApodo es determinista con un aleatorio fijo y tiene el formato correcto', () => {
