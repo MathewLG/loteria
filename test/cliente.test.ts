@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { aHex, barajar, sha256 } from '../public/js/baraja.js';
 import { FASE } from '../public/js/protocolo.js';
 import { claveDeRonda, verificarRonda } from '../public/js/verificacion.js';
-import { duracionAproximada, msHastaSiguienteRonda, textoBoton } from '../public/js/estado-ui.js';
+import { duracionAproximada, msHastaSiguienteRonda, textoBoton, textoRondaReciente } from '../public/js/estado-ui.js';
 
 const semilla = new Uint8Array(32).fill(9);
 const huella = sha256(semilla);
@@ -56,4 +56,10 @@ test('la estimación para espectadores crece con las cartas que faltan', () => {
   assert.ok(b > a);
   assert.equal(duracionAproximada(45_000), '45 s');
   assert.equal(duracionAproximada(4 * 60_000 + 10_000), '4 min');
+});
+
+test('etiqueta de ronda reciente en lenguaje de jugador', () => {
+  assert.equal(textoRondaReciente({ clave: '2026-11-21/12-ab12cd34', ronda: 12, ganadores: 3 }), 'Ronda 12 · 21 nov · 3 ganadores');
+  assert.equal(textoRondaReciente({ clave: '2026-01-05/1-00000000', ronda: 1, fecha: '2026-01-05', ganadores: 1 }), 'Ronda 1 · 5 ene · 1 ganador');
+  assert.equal(textoRondaReciente({ clave: 'x', ronda: 7, ganadores: 0 }), 'Ronda 7 · sin ganadores');
 });

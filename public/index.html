@@ -33,10 +33,6 @@
       <p class="cantor-verso" id="cantor-verso"></p>
       <div class="barra-tiempo" aria-hidden="true"><span id="barra-tiempo"></span></div>
       <p class="sala-info" id="info-sala"></p>
-      <p class="apodo" id="apodo-linea">
-        Juegas como <b id="apodo"></b>
-        <button class="boton-enlace" id="boton-apodo" type="button">Cambiar apodo</button>
-      </p>
     </div>
   </section>
 
@@ -46,29 +42,35 @@
     <div class="tabla-cargando" id="tabla-cargando">Conectando con la sala…</div>
 
     <div class="eleccion" id="eleccion" hidden>
-      <p class="eleccion-titulo" id="eleccion-titulo">Elige tu tabla para esta ronda</p>
+      <p class="eleccion-titulo" id="eleccion-titulo">Elige tu tabla:</p>
       <div class="eleccion-opciones" id="eleccion-opciones" role="radiogroup" aria-labelledby="eleccion-titulo"></div>
     </div>
 
     <div class="espectador" id="espectador" hidden>
       <h2>Llegaste con la ronda empezada</h2>
-      <p>Mira cómo se canta esta ronda. Tu tabla llega al empezar la siguiente.</p>
       <p class="espectador-cuenta" id="espectador-cuenta"></p>
+      <p>Mientras, mira cómo se canta. Tu tabla llega al empezar la siguiente ronda.</p>
+      <p class="espectador-subtitulo" id="espectador-subtitulo">Lo último que salió</p>
+      <ol class="espectador-cartas" id="espectador-cartas" aria-labelledby="espectador-subtitulo"></ol>
     </div>
 
-    <div class="tabla" id="tabla" role="group" aria-label="Tu tabla: toca una carta que ya salió para ponerle un frijol" hidden></div>
+    <div class="tabla" id="tabla" role="group" aria-label="Tu tabla. Toca una carta que ya salió para ponerle un frijol; con teclado, muévete con las flechas" hidden></div>
   </section>
 
   <div class="pie" id="pie">
+    <p class="apodo" id="apodo-linea" hidden>
+      Juegas como <b id="apodo"></b>
+      <button class="boton-enlace" id="boton-apodo" type="button">Cambiar apodo</button>
+    </p>
     <p class="mensaje" id="mensaje" aria-live="polite"></p>
     <button class="boton-grito" id="boton-loteria" type="button" disabled>Conectando…</button>
   </div>
 
-  <section class="fin" id="panel-fin" aria-live="polite" hidden>
+  <section class="fin" id="panel-fin" aria-labelledby="fin-titulo" hidden>
     <h2 id="fin-titulo"></h2>
     <p id="fin-resultado" class="fin-resultado"></p>
     <div class="verificacion" id="fin-verificacion"></div>
-    <p class="fin-siguiente"><span id="fin-siguiente"></span> <a id="fin-enlace" href="/verificar.html">Verificar esta ronda</a></p>
+    <p class="fin-siguiente" id="fin-siguiente"></p>
   </section>
 </main>
 

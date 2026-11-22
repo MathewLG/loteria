@@ -25,3 +25,19 @@ export function duracionAproximada(ms) {
   if (seg < 60) return `${seg} s`;
   return `${Math.round(seg / 60)} min`;
 }
+
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/**
+ * Etiqueta de una ronda reciente para el selector de verificar.html:
+ * "Ronda 12 · 21 nov · 3 ganadores". Toma la fecha de la clave (AAAA-MM-DD/…) si no viene aparte.
+ */
+export function textoRondaReciente({ clave = '', ronda, fecha, ganadores }) {
+  const iso = String(fecha ?? clave).slice(0, 10);
+  const [, mes, dia] = iso.split('-').map(Number);
+  const partes = [`Ronda ${ronda}`];
+  if (mes >= 1 && mes <= 12 && dia >= 1) partes.push(`${dia} ${MESES[mes - 1]}`);
+  const n = Number(ganadores);
+  if (Number.isFinite(n)) partes.push(n === 0 ? 'sin ganadores' : `${n} ${n === 1 ? 'ganador' : 'ganadores'}`);
+  return partes.join(' · ');
+}
