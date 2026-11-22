@@ -32,9 +32,14 @@ jobs:
         if: steps.credenciales.outputs.listo == 'true'
         with:
           node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+        if: steps.credenciales.outputs.listo == 'true'
       - run: npm test
         if: steps.credenciales.outputs.listo == 'true'
-      - uses: cloudflare/wrangler-action@v3
+      # Usa el wrangler fijado en package-lock.json, no el que trae una acción.
+      - name: Desplegar con wrangler
         if: steps.credenciales.outputs.listo == 'true'
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler deploy
