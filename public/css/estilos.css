@@ -445,4 +445,24 @@ a:hover { color: var(--tinta); }
 .resultado-verificacion dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; font-size: 15px; }
 .resultado-verificacion dt { font-weight: 700; }
 .resultado-verificacion dd { margin: 0; overflow-wrap: anywhere; }
-.cartas-verificadas { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
+.cartas-verificadas { margin: 0; padding: 6px; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; border-radius: 8px; background: var(--tinta); }
+/* Rondas recientes: botones de lista a tamaño táctil; la elegida se rellena de tinta. */
+.rondas-recientes { display: flex; flex-direction: column; gap: 8px; }
+.lista-rondas { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.boton-ronda {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 2px solid var(--tinta);
+  border-radius: 8px;
+  background: var(--papel);
+  color: var(--tinta);
+  font-weight: 700;
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+.boton-ronda:hover { background: #F7EBD0; }
+.boton-ronda[aria-pressed="true"] { background: var(--tinta); color: var(--papel); }
+.estado-lista { color: var(--tinta-suave); }
+.detalle-tecnico summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700; }
