@@ -11,6 +11,7 @@ export const FUENTE = {
 };
 
 /** Un grito por carta, en el orden de NOMBRES; null donde no hay uno documentado. */
+/** @type {(string | null)[]} */
 export const VERSOS = Array.from({ length: 54 }, () => null);
 
 const DOCUMENTADOS = {
