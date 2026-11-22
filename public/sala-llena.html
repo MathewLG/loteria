@@ -9,14 +9,17 @@
 <link rel="stylesheet" href="/css/estilos.css">
 </head>
 <body>
-<main class="pagina">
-  <h1 id="titulo">La sala está llena</h1>
-  <p id="explicacion">Ya hay tanta gente jugando como cabe en la sala. En cuanto empiece la siguiente ronda volvemos a intentar entrar.</p>
-  <p class="cuenta" id="cuenta" aria-hidden="true"></p>
-  <p id="cuenta-texto" role="status"></p>
-  <p><a class="boton-principal" id="reintentar" href="/">Intentar ahora</a></p>
+<main class="pagina pagina-llena">
+  <div class="llena-carta" id="carta" aria-hidden="true"></div>
+  <div class="llena-texto">
+    <h1 id="titulo">Ya no cabe nadie más en esta ronda</h1>
+    <p id="explicacion">La sala está a reventar. En cuanto empiece la siguiente ronda volvemos a intentar entrar, solos, sin que tengas que hacer nada.</p>
+    <p class="llena-cuenta" id="cuenta" role="status"></p>
+    <p><a class="boton-principal" id="reintentar" href="/">Intentar ahora</a></p>
+  </div>
 </main>
 <script type="module">
+  import { svgReverso } from '/js/cartas.js';
   const p = new URLSearchParams(location.search);
   const razon = p.get('razon');
   const ms = Math.min(24 * 3600 * 1000, Math.max(5000, Number(p.get('ms')) || 30000));
@@ -24,21 +27,25 @@
   if (razon === 'cuota') {
     document.getElementById('titulo').textContent = 'La sala descansa por hoy';
     document.getElementById('explicacion').textContent =
-      'El juego corre gratis y hoy ya se usó todo lo que el plan gratuito permite. Las entradas se abren de nuevo a las 18:00, hora de Guadalajara.';
+      'El juego corre gratis y hoy ya se jugó todo lo que el plan gratuito permite. Las entradas se abren otra vez a las 18:00, hora de Guadalajara.';
     document.title = 'La sala descansa por hoy · Lotería';
   }
+  const carta = document.getElementById('carta');
   const cuenta = document.getElementById('cuenta');
-  const texto = document.getElementById('cuenta-texto');
-  const formato = (seg) => (seg >= 3600 ? `${Math.floor(seg / 3600)} h ${Math.floor((seg % 3600) / 60)} min`
-    : seg >= 60 ? `${Math.floor(seg / 60)} min ${seg % 60} s` : `${seg} s`);
-  let ultimo = -1;
+  // Una sola cuenta: la carta muestra el número grande y la línea de texto dice lo mismo con su unidad.
+  // La línea se reescribe solo cuando cambia lo que dice en voz alta (cada minuto, o cada 10 s al final).
+  const partes = (seg) => (seg >= 3600 ? [Math.ceil(seg / 3600), Math.ceil(seg / 3600) === 1 ? 'hora' : 'horas']
+    : seg >= 60 ? [Math.ceil(seg / 60), Math.ceil(seg / 60) === 1 ? 'minuto' : 'minutos']
+      : [seg, seg === 1 ? 'segundo' : 'segundos']);
+  let dicho = '';
   const tic = () => {
     const seg = Math.max(0, Math.ceil((hora - Date.now()) / 1000));
     if (seg === 0) { location.assign('/'); return; }
-    cuenta.textContent = formato(seg);
-    // El lector de pantalla se entera cada minuto, no cada segundo.
-    const minuto = Math.ceil(seg / 60);
-    if (minuto !== ultimo) { ultimo = minuto; texto.textContent = `Volvemos a intentar en ${formato(seg)}.`; }
+    const [n, unidad] = partes(seg);
+    carta.innerHTML = svgReverso(String(n));
+    const redondeo = seg < 60 ? Math.ceil(seg / 10) * 10 : n;
+    const frase = seg < 60 ? `Volvemos a intentar en menos de ${redondeo} segundos.` : `Volvemos a intentar en ${n} ${unidad}.`;
+    if (frase !== dicho) { dicho = frase; cuenta.textContent = frase; }
   };
   tic();
   setInterval(tic, 1000);

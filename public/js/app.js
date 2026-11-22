@@ -29,6 +29,8 @@ const ui = {
   eleccionOpciones: $('eleccion-opciones'),
   espectador: $('espectador'),
   espectadorCuenta: $('espectador-cuenta'),
+  espectadorCartas: $('espectador-cartas'),
+  apodoLinea: $('apodo-linea'),
   tabla: $('tabla'),
   pie: $('pie'),
   mensaje: $('mensaje'),
@@ -38,7 +40,6 @@ const ui = {
   finResultado: $('fin-resultado'),
   finVerificacion: $('fin-verificacion'),
   finSiguiente: $('fin-siguiente'),
-  finEnlace: $('fin-enlace'),
   historial: $('historial'),
   historialLista: $('historial-lista'),
   historialVacio: $('historial-vacio'),
@@ -235,6 +236,7 @@ function manejar(m) {
       ui.eleccion.hidden = true;
       anunciar(`Salió ${NOMBRES[m.carta - 1]}. ${VERSOS[m.carta - 1] ?? ''}`);
       pintarCantor(true);
+      pintarInerte();
       pintarInfo();
       pintarHistorial();
       pintarEspectador();
@@ -270,7 +272,7 @@ function manejar(m) {
       s.limite = Date.now() + m.msSiguiente;
       verificar();
       pintarTodo(false);
-      anunciar(`Terminó la ronda. ${textoResultado()}`);
+      anunciar(`Terminó la ronda. ${textoResultado()}${s.verificacion?.ok ? ' La baraja no se tocó.' : ''}`);
       break;
   }
 }
@@ -294,6 +296,7 @@ function alEstado(m) {
     s.verificacion = null;
     decir('');
   }
+  ui.pie.classList.toggle('gano', !!s.lugar && s.fase === FASE.CANTANDO);
   if (otraTabla) {
     s.marcadas = cargarMarcas();
     construirTabla();
@@ -315,8 +318,13 @@ function cartaChica(carta) {
   return svgCarta(carta, { compacta: true });
 }
 
+// Con teclado la tabla es una sola parada de Tab: las flechas se mueven entre casillas
+// y Enter o Espacio ponen el frijol (tabindex itinerante).
+let casillaConFoco = 0;
+
 function construirTabla() {
   ui.tabla.replaceChildren();
+  casillaConFoco = 0;
   if (s.espectador || !s.tabla.length) {
     ui.tabla.hidden = true;
     return;
@@ -325,14 +333,38 @@ function construirTabla() {
     const boton = document.createElement('button');
     boton.type = 'button';
     boton.className = 'casilla';
+    boton.tabIndex = i === 0 ? 0 : -1;
     boton.innerHTML = cartaChica(carta);
-    boton.addEventListener('click', () => tocar(i));
+    boton.addEventListener('click', () => { casillaConFoco = i; tocar(i); });
+    boton.addEventListener('keydown', (e) => moverEnTabla(e, i));
     ui.tabla.append(boton);
     if (s.marcadas & (1 << i)) ponerFrijol(boton, i, false);
     etiquetarCasilla(boton, i);
   });
   ui.cargando.hidden = true;
   ui.tabla.hidden = false;
+  pintarInerte();
+}
+
+function moverEnTabla(e, i) {
+  const pasos = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 4, ArrowUp: -4 };
+  let destino;
+  if (e.key in pasos) destino = i + pasos[e.key];
+  else if (e.key === 'Home') destino = i - (i % 4);
+  else if (e.key === 'End') destino = i - (i % 4) + 3;
+  else return;
+  e.preventDefault();
+  if (destino < 0 || destino > 15) return;
+  const casillas = ui.tabla.children;
+  casillas[i].tabIndex = -1;
+  casillas[destino].tabIndex = 0;
+  casillas[destino].focus();
+  casillaConFoco = destino;
+}
+
+/** En la espera la tabla es una vista previa y al final ya no se juega: fuera del foco y del lector. */
+function pintarInerte() {
+  ui.tabla.inert = s.fase !== FASE.CANTANDO;
 }
 
 function etiquetarCasilla(boton, i) {
@@ -402,8 +434,9 @@ function pintarEleccion() {
       b.type = 'button';
       b.className = 'opcion-tabla';
       b.setAttribute('role', 'radio');
-      b.setAttribute('aria-label', `Tabla ${i + 1}: ${tabla.slice(0, 4).map((c) => NOMBRES[c - 1]).join(', ')} y 12 más`);
-      b.innerHTML = `<span class="mini-tabla" aria-hidden="true">${tabla.map((c) => cartaChica(c)).join('')}</span><span aria-hidden="true">${i + 1}</span>`;
+      // La tabla elegida se ve abajo a tamaño de juego; aquí basta el número y, para el lector, sus primeras cartas.
+      b.setAttribute('aria-label', `Tabla ${i + 1}: empieza con ${tabla.slice(0, 4).map((c) => NOMBRES[c - 1]).join(', ')}`);
+      b.textContent = `Tabla ${i + 1}`;
       b.addEventListener('click', () => elegirTabla(i));
       b.addEventListener('keydown', (e) => moverEleccion(e, i));
       return b;
@@ -489,9 +522,40 @@ function pintarHistorial() {
 
 // ---- Pintar ----
 
+// El pie muestra un solo mensaje. Durante la gracia final el aviso urgente es el mensaje de base,
+// y cualquier otro mensaje lo reemplaza unos segundos antes de que el aviso regrese.
+let mensajeTemporalHasta = 0;
+
 function decir(texto, gano = false) {
+  mensajeTemporalHasta = texto && enGracia() ? Date.now() + 3000 : 0;
   ui.mensaje.textContent = texto;
   ui.mensaje.classList.toggle('gano', gano);
+  ui.mensaje.classList.remove('urgente');
+  ui.pie.classList.toggle('gano', gano);
+  if (!texto) pintarMensajeGracia();
+}
+
+function pintarMensajeGracia() {
+  const urgente = enGracia() && !s.lugar && !s.espectador && s.conectado;
+  if (!urgente) {
+    if (ui.mensaje.classList.contains('urgente')) {
+      ui.mensaje.classList.remove('urgente');
+      ui.mensaje.textContent = '';
+    }
+    return;
+  }
+  if (Date.now() < mensajeTemporalHasta) return;
+  const seg = segundosRestantes();
+  const texto = seg > 0 ? `¡Última carta! Tienes ${seg} s para gritar` : 'La ronda está por cerrar';
+  if (!ui.mensaje.classList.contains('urgente')) {
+    ui.mensaje.classList.add('urgente');
+    // La raya de tiempo debajo del aviso sigue el tiempo real de la gracia aunque el aviso se haya interrumpido.
+    const total = Math.max(1000, s.msEntreCartas);
+    const transcurrido = Math.min(total, Math.max(0, total - (s.limite - Date.now())));
+    ui.mensaje.style.setProperty('--gracia-total', `${total}ms`);
+    ui.mensaje.style.setProperty('--gracia-transcurrido', `-${transcurrido}ms`);
+  }
+  if (ui.mensaje.textContent !== texto) ui.mensaje.textContent = texto;
 }
 
 function anunciar(texto) {
@@ -525,8 +589,9 @@ function pintarTodo(otraRonda) {
 }
 
 function pintarApodo() {
-  // El apodo se muestra en la espera; durante el canto y al final el espacio es de la tabla y el resultado.
-  document.getElementById('apodo-linea').hidden = s.fase !== FASE.ESPERA || s.espectador;
+  // El apodo vive en el pie durante la espera, donde todavía no hay mensajes del juego;
+  // así no compite con la cuenta regresiva ni con la elección de tabla.
+  ui.apodoLinea.hidden = !s.conectado || s.fase !== FASE.ESPERA || s.espectador;
 }
 
 function pintarInfo() {
@@ -574,10 +639,8 @@ function enGracia() {
 }
 
 function pintarCuentaGracia() {
-  const seg = segundosRestantes();
-  ui.cantorEtiqueta.textContent = seg > 0
-    ? `Última carta: tienes ${seg} s para gritar`
-    : 'Última carta: la ronda está por cerrar';
+  ui.cantorEtiqueta.textContent = `Última carta, ${s.cantadas.length} de ${s.catalogo}:`;
+  pintarMensajeGracia();
 }
 
 function pintarCuentaEspera() {
@@ -597,12 +660,18 @@ function reiniciarBarra(ms) {
 }
 
 function pintarEspectador() {
-  ui.espectador.hidden = !s.espectador || s.fase === FASE.ESPERA;
+  // Al terminar, el panel de fin ya dice cuándo empieza la siguiente ronda: la caja se va para no repetirlo.
+  ui.espectador.hidden = !s.espectador || s.fase !== FASE.CANTANDO;
   if (ui.espectador.hidden) return;
   ui.cargando.hidden = true;
-  if (s.fase === FASE.TERMINADA) {
-    ui.espectadorCuenta.textContent = `La siguiente ronda empieza en ${segundosRestantes()} s.`;
-    return;
+  const recientes = s.cantadas.slice(-4).reverse();
+  if (ui.espectadorCartas.dataset.ultima !== String(s.cantadas.length)) {
+    ui.espectadorCartas.dataset.ultima = String(s.cantadas.length);
+    ui.espectadorCartas.replaceChildren(...recientes.map((carta) => {
+      const li = document.createElement('li');
+      li.innerHTML = `${cartaChica(carta)}<span class="solo-lector">${NOMBRES[carta - 1]}</span>`;
+      return li;
+    }));
   }
   const ms = msHastaSiguienteRonda({
     catalogo: s.catalogo,
@@ -616,20 +685,23 @@ function pintarEspectador() {
 function pintarFin() {
   const terminada = s.fase === FASE.TERMINADA;
   ui.fin.hidden = !terminada;
-  ui.pie.hidden = terminada;
+  // El pie conserva su lugar (invisible) para que la tabla no cambie de tamaño al terminar.
+  ui.pie.classList.toggle('oculto', terminada);
+  ui.pie.inert = terminada;
+  pintarInerte();
   if (!terminada) return;
   ui.finTitulo.textContent = `Terminó la ronda ${s.ronda}`;
   ui.finResultado.textContent = textoResultado();
   const v = s.verificacion;
   if (v) {
+    const enlace = `/verificar.html?clave=${encodeURIComponent(claveDeRonda(s.ronda, v.huella))}`;
     const sello = v.ok
       ? '<svg class="sello" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="13" fill="#2F4F8F"/><path d="M8 14.5 L12.5 19 L20.5 9.5" fill="none" stroke="#F3E7CB" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>'
       : '<svg class="sello" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="13" fill="#B8322A"/><path d="M9 9 L19 19 M19 9 L9 19" stroke="#F3E7CB" stroke-width="3" stroke-linecap="round"/></svg>';
     const texto = v.ok
-      ? '<p><b>Baraja verificada en tu dispositivo.</b> La semilla revelada da la huella publicada antes de cantar y produce exactamente estas cartas.</p>'
-      : '<p><b>La verificación no coincide.</b> La semilla revelada no produce las cartas que salieron.</p>';
-    ui.finVerificacion.innerHTML = `${sello}<div>${texto}<p class="huella">${v.huella.slice(0, 32)}…</p></div>`;
-    ui.finEnlace.href = `/verificar.html?clave=${encodeURIComponent(claveDeRonda(s.ronda, v.huella))}`;
+      ? `<p><b>La baraja no se tocó.</b> Este dispositivo comprobó que las cartas salieron en el orden sorteado antes de empezar. <a href="${enlace}">¿Cómo lo sabemos?</a></p>`
+      : `<p><b>No pudimos confirmar el orden de la baraja.</b> Las cartas que salieron no coinciden con el sorteo del inicio. <a href="${enlace}">Ver detalles</a></p>`;
+    ui.finVerificacion.innerHTML = `${sello}<div>${texto}</div>`;
   }
   pintarCuentaFin();
 }
@@ -643,6 +715,8 @@ function actualizarBoton() {
   const { texto, deshabilitado } = textoBoton(s);
   ui.botonLoteria.textContent = texto;
   ui.botonLoteria.disabled = deshabilitado;
+  // Al ganar, el aviso grana ocupa el lugar del botón: un solo elemento dice el resultado.
+  ui.botonLoteria.hidden = !!s.lugar && s.fase === FASE.CANTANDO;
   pintarInfo();
 }
 
@@ -652,7 +726,7 @@ setInterval(() => {
   if (s.fase === FASE.ESPERA) pintarCuentaEspera();
   else if (s.fase === FASE.TERMINADA) { pintarCuentaFin(); pintarEspectador(); }
   else {
-    if (enGracia()) pintarCuentaGracia();
+    if (enGracia()) pintarMensajeGracia();
     if (s.espectador) pintarEspectador();
   }
 }, 250);

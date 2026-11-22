@@ -37,6 +37,7 @@ html, body {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   grid-template-areas: "barra" "cantor" "tabla" "pie";
   gap: var(--hueco);
+  position: relative;
 }
 
 .barra { grid-area: barra; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -73,10 +74,11 @@ a:hover { color: var(--tinta); }
 }
 .boton-enlace:hover { color: var(--tinta); }
 
-/* Aviso de conexión: flota arriba y no mueve nada. */
+/* Aviso de conexión: flota abajo, encima del pie (el botón ya dice "Sin conexión"),
+   para no tapar la barra superior ni el botón del historial. No mueve nada. */
 .aviso-conexion {
   position: fixed;
-  top: max(8px, env(safe-area-inset-top));
+  bottom: max(12px, env(safe-area-inset-bottom));
   left: 50%;
   z-index: 10;
   width: min(460px, calc(100% - 20px));
@@ -115,7 +117,7 @@ a:hover { color: var(--tinta); }
 .barra-tiempo span { display: block; width: 100%; height: 100%; background: var(--tinta); transform-origin: left center; transform: scaleX(0); }
 @keyframes avance { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 .sala-info { margin: 0; font-size: 14px; color: var(--tinta-suave); }
-.apodo { margin: 0; font-size: 14px; line-height: 1.3; display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; }
+.apodo { margin: 0; font-size: 15px; line-height: 1.3; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; column-gap: 6px; }
 
 /* ---- Zona de la tabla: se ajusta al alto disponible ---- */
 .tabla-zona {
@@ -138,8 +140,8 @@ a:hover { color: var(--tinta); }
   border-radius: 10px;
   background: var(--tinta);
 }
-/* Con el selector de tablas arriba (unos 140 px), la tabla se achica para seguir cabiendo. */
-.eleccion:not([hidden]) ~ .tabla { width: min(100cqw, calc((100cqh - 170px) / 1.5 + 30px)); }
+/* Con el selector de tablas arriba (una fila de 44 px), la tabla cede solo esa fila. */
+.eleccion:not([hidden]) ~ .tabla { width: min(100cqw, calc((100cqh - 52px - 30px) / 1.5 + 30px)); }
 .casilla {
   position: relative;
   display: block;
@@ -155,7 +157,7 @@ a:hover { color: var(--tinta); }
 /* Sobre el tablero negro el añil no contrasta: el foco va en cempasúchil. */
 .casilla:focus-visible { outline: 3px solid var(--cempa); outline-offset: 2px; }
 
-.tabla-cargando, .espectador {
+.tabla-cargando {
   width: 100%;
   padding: 32px 16px;
   border: 2px dashed var(--tinta-suave);
@@ -164,32 +166,47 @@ a:hover { color: var(--tinta); }
   font-size: 16px;
   line-height: 1.4;
 }
-.espectador h2 { margin: 0 0 8px; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 20px; }
-.espectador p { margin: 0 0 6px; }
-.espectador-cuenta { font-weight: 700; }
-
-/* ---- Elegir tabla ---- */
-.eleccion { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.eleccion-titulo { margin: 0; font-weight: 700; font-size: 15px; }
-.eleccion-opciones { display: flex; gap: 10px; }
-.opcion-tabla {
-  min-height: 44px;
-  padding: 4px;
-  border: 2px solid var(--tinta-suave);
-  border-radius: 8px;
+/* Espectador: borde sólido y presencia propia; el borde punteado es solo del estado de carga. */
+.espectador {
+  width: 100%;
+  padding: 18px 16px;
+  border: 2px solid var(--tinta);
+  border-radius: 10px;
   background: var(--papel);
   display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 16px;
+  line-height: 1.4;
+}
+.espectador h2 { margin: 0; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 20px; line-height: 1.15; }
+.espectador p { margin: 0; }
+.espectador-cuenta { font-family: 'Alfa Slab One', serif; font-size: 22px; line-height: 1.15; }
+.espectador-subtitulo { margin-top: 4px !important; font-weight: 700; font-size: 15px; }
+.espectador-cartas { margin: 0; padding: 6px; list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; border-radius: 8px; background: var(--tinta); }
+.espectador-cartas li:first-child .carta { outline: 3px solid var(--cempa); outline-offset: -1px; border-radius: 6px; }
+
+/* ---- Elegir tabla: control segmentado; la tabla elegida se ve abajo a tamaño de juego ---- */
+.eleccion { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.eleccion-titulo { margin: 0; font-weight: 700; font-size: 15px; }
+.eleccion-opciones { display: flex; border: 2px solid var(--tinta); border-radius: 8px; overflow: hidden; }
+.opcion-tabla {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-left: 2px solid var(--tinta);
+  background: var(--papel);
   color: var(--tinta);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 15px;
+  cursor: pointer;
 }
-.opcion-tabla[aria-checked="true"] { border-color: var(--grana); border-width: 3px; padding: 3px; background: #F7EBD0; }
-.opcion-tabla:hover { border-color: var(--tinta); }
-.mini-tabla { display: grid; grid-template-columns: repeat(4, 11px); gap: 1px; padding: 2px; border-radius: 3px; background: var(--tinta); }
-.mini-tabla .carta { width: 11px; }
+.opcion-tabla:first-child { border-left: 0; }
+.opcion-tabla:hover { background: #F7EBD0; }
+/* La elegida se distingue por relleno de tinta, no solo por color. */
+.opcion-tabla[aria-checked="true"] { background: var(--tinta); color: var(--papel); }
+.opcion-tabla:focus-visible { outline-offset: -5px; outline-color: var(--cempa); }
 
 /* ---- Frijol ---- */
 .frijol { position: absolute; width: 46%; transform: translate(-50%, -50%); pointer-events: none; }
@@ -227,14 +244,42 @@ a:hover { color: var(--tinta); }
 
 /* ---- Pie ---- */
 .pie { grid-area: pie; display: flex; flex-direction: column; gap: 6px; background: var(--mantel); }
+/* Al terminar, el pie guarda su lugar invisible para que la tabla no cambie de tamaño. */
+.pie.oculto { visibility: hidden; }
 .mensaje { margin: 0; min-height: 21px; text-align: center; font-size: 15px; line-height: 1.35; color: var(--tinta-suave); }
+/* Al ganar, el aviso ocupa el lugar del botón: misma altura, un solo elemento. */
 .mensaje.gano {
+  min-height: 56px;
   padding: 8px 12px;
   border-radius: 8px;
   background: var(--grana);
   color: var(--papel);
   font-family: 'Alfa Slab One', serif;
-  font-size: 18px;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pie.gano { padding-top: 27px; }
+/* En la espera el apodo ocupa la línea del mensaje si este no tiene nada que decir. */
+.pie:has(.apodo:not([hidden])) .mensaje:empty { display: none; }
+/* Gracia final: el momento más urgente usa la tipografía del grito y una raya que se consume. */
+.mensaje.urgente {
+  color: var(--tinta);
+  font-family: 'Alfa Slab One', serif;
+  font-size: 19px;
+  line-height: 1.2;
+}
+.mensaje.urgente::after {
+  content: '';
+  display: block;
+  height: 4px;
+  margin: 4px auto 0;
+  max-width: 260px;
+  border-radius: 2px;
+  background: var(--tinta);
+  transform-origin: left center;
+  animation: avance var(--gracia-total, 10s) linear var(--gracia-transcurrido, 0s) forwards;
 }
 .boton-grito {
   min-height: 56px;
@@ -249,27 +294,33 @@ a:hover { color: var(--tinta); }
 .boton-grito:hover { background: var(--grana-oscura); }
 .boton-grito:disabled { background: var(--apagado); color: var(--tinta); cursor: default; font-family: 'Atkinson Hyperlegible', sans-serif; font-weight: 700; font-size: 18px; }
 
-/* ---- Fin de ronda: ocupa el lugar del pie ---- */
+/* ---- Fin de ronda: en celular, una hoja que sube sobre la parte baja de la tabla.
+   La tabla conserva su tamaño de juego. La sombra marca que la hoja está encima. ---- */
 .fin {
-  grid-area: pie;
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 5;
   padding: 12px 14px;
   border: 2px solid var(--tinta);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--papel);
+  box-shadow: 0 -6px 18px rgba(27, 23, 20, 0.22);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
-.fin h2 { margin: 0; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 20px; }
+.fin h2 { margin: 0; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 20px; line-height: 1.15; }
 .fin p { margin: 0; line-height: 1.35; }
 .fin-resultado { font-size: 16px; }
-.fin-siguiente { color: var(--tinta-suave); font-size: 15px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
-.fin-siguiente a { min-height: 44px; display: inline-flex; align-items: center; }
-.verificacion { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.35; }
+.fin-siguiente { color: var(--tinta-suave); font-size: 15px; }
+.verificacion { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; line-height: 1.35; }
 .verificacion p { margin: 0; }
+.verificacion a { display: inline-block; min-height: 24px; padding: 2px 0; }
 .sello { flex-shrink: 0; width: 26px; height: 26px; }
-/* La huella es un dato técnico que alguien podría querer copiar: va en monoespaciada. */
-.huella { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
+/* Datos técnicos (solo en verificar.html, dentro de un detalle plegado): monoespaciada para copiarlos. */
+.huella { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; }
 
 /* ---- Historial ---- */
 .historial {
@@ -320,11 +371,22 @@ a:hover { color: var(--tinta); }
   .cantor-nombre { font-size: 32px; }
   .cantor-verso { font-size: 17px; -webkit-line-clamp: 3; }
   .pie, .fin { align-self: end; }
+  /* En escritorio el fin ocupa el lugar del pie, en la columna izquierda. */
+  .fin { position: static; grid-area: pie; box-shadow: none; }
+  .pie.oculto { display: none; }
+  /* El aviso de conexión se queda sobre el pie, sin tapar la tabla de la derecha. */
+  .aviso-conexion {
+    left: max(28px, calc((100vw - 1120px) / 2 + 28px));
+    width: min(380px, calc(100vw - 56px));
+    transform: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .cae .frijol-cuerpo { animation: aparece 150ms ease-out both; }
   .cae .frijol-sombra, .sacude, .entra { animation: none; }
+  /* Sin movimiento, la cuenta en texto basta: la raya se quita en lugar de quedarse a medias. */
+  .mensaje.urgente::after { display: none; }
 }
 @keyframes aparece { from { opacity: 0; } to { opacity: 1; } }
 
@@ -342,6 +404,15 @@ a:hover { color: var(--tinta); }
 .pagina h2 { margin: 0; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 22px; }
 .pagina p { margin: 0; font-size: 17px; line-height: 1.45; }
 .pagina .cuenta { font-family: 'Alfa Slab One', serif; font-size: 48px; color: var(--grana); line-height: 1; }
+/* Sala llena: el reverso de una carta lleva la cuenta, como en la espera del juego. */
+.pagina-llena { display: flex; gap: 24px; align-items: center; }
+.llena-carta { width: 120px; flex-shrink: 0; }
+.llena-texto { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.llena-cuenta { font-weight: 700; }
+@media (max-width: 520px) {
+  .pagina-llena { flex-direction: column; align-items: flex-start; }
+  .llena-carta { width: 96px; }
+}
 .pagina form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .pagina label { display: flex; flex-direction: column; gap: 4px; font-weight: 700; font-size: 15px; flex: 1 1 260px; }
 .pagina input {
@@ -374,4 +445,24 @@ a:hover { color: var(--tinta); }
 .resultado-verificacion dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; font-size: 15px; }
 .resultado-verificacion dt { font-weight: 700; }
 .resultado-verificacion dd { margin: 0; overflow-wrap: anywhere; }
-.cartas-verificadas { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
+.cartas-verificadas { margin: 0; padding: 6px; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; border-radius: 8px; background: var(--tinta); }
+/* Rondas recientes: botones de lista a tamaño táctil; la elegida se rellena de tinta. */
+.rondas-recientes { display: flex; flex-direction: column; gap: 8px; }
+.lista-rondas { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.boton-ronda {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 2px solid var(--tinta);
+  border-radius: 8px;
+  background: var(--papel);
+  color: var(--tinta);
+  font-weight: 700;
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+.boton-ronda:hover { background: #F7EBD0; }
+.boton-ronda[aria-pressed="true"] { background: var(--tinta); color: var(--papel); }
+.estado-lista { color: var(--tinta-suave); }
+.detalle-tecnico summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700; }
