@@ -63,3 +63,9 @@ test('etiqueta de ronda reciente en lenguaje de jugador', () => {
   assert.equal(textoRondaReciente({ clave: '2026-01-05/1-00000000', ronda: 1, fecha: '2026-01-05', ganadores: 1 }), 'Ronda 1 · 5 ene · 1 ganador');
   assert.equal(textoRondaReciente({ clave: 'x', ronda: 7, ganadores: 0 }), 'Ronda 7 · sin ganadores');
 });
+
+test('tras una falsa lotería el botón dice que queda fuera de la ronda', () => {
+  const base = { conectado: true, ronda: 3, fase: FASE.CANTANDO, espectador: false, lugar: 0, esperandoResultado: false };
+  assert.deepEqual(textoBoton({ ...base, descalificado: true }), { texto: 'Fuera de esta ronda', deshabilitado: true });
+  assert.deepEqual(textoBoton({ ...base, descalificado: false }), { texto: '¡Lotería!', deshabilitado: false });
+});
