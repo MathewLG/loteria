@@ -49,7 +49,6 @@ Cada frase del cantor guarda su origen. Reglas:
 | 33 | La Araña | Atarántamela a palos, no me la dejes llegar. | [Tesis UNAM 2011](https://ru.dgb.unam.mx/bitstream/20.500.14330/TES01000674861/3/0674861_A1.pdf), [Lista moderna (Wikipedia)](https://en.wikipedia.org/wiki/Loter%C3%ADa) |
 | 34 | El Soldado | Uno, dos y tres, el soldado p'al cuartel. | [Tesis UNAM 2011](https://ru.dgb.unam.mx/bitstream/20.500.14330/TES01000674861/3/0674861_A1.pdf), [Lista moderna (Wikipedia)](https://en.wikipedia.org/wiki/Loter%C3%ADa) |
 | 35 | La Estrella | La guía de los marineros. | [Tesis UNAM 2011](https://ru.dgb.unam.mx/bitstream/20.500.14330/TES01000674861/3/0674861_A1.pdf), [Lista moderna (Wikipedia)](https://en.wikipedia.org/wiki/Loter%C3%ADa) |
-| 36 | El Cazo | El caso que me haces poco, y el caso es averiguarlo. | Mathew López (tradición familiar) |
 | 36 | El Cazo | El caso que te hago es poco. | [Tesis UNAM 2011](https://ru.dgb.unam.mx/bitstream/20.500.14330/TES01000674861/3/0674861_A1.pdf), [Lista moderna (Wikipedia)](https://en.wikipedia.org/wiki/Loter%C3%ADa) |
 | 37 | El Mundo | Este mundo es una bola, y nosotros un bolón. | [Tesis UNAM 2011](https://ru.dgb.unam.mx/bitstream/20.500.14330/TES01000674861/3/0674861_A1.pdf), [Lista moderna (Wikipedia)](https://en.wikipedia.org/wiki/Loter%C3%ADa) |
 | 38 | El Apache | (solo el nombre) | |

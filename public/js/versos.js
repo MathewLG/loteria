@@ -5,7 +5,6 @@
 //  - Tradición oral: frases populares que aparecen en varias fuentes independientes.
 //    La Ley Federal del Derecho de Autor (art. 14, fr. III) no protege frases aisladas;
 //    lo que sí se evita es copiar en bloque una compilación moderna de un solo sitio.
-//  - Aportadas por el equipo: frases que alguien del proyecto conoce de su familia.
 // Cada frase guarda su origen para poder revisarla o quitarla.
 
 export const FUENTES = {
@@ -14,7 +13,6 @@ export const FUENTES = {
     url: 'https://archive.org/details/ellibrodemisrecu00garc',
   },
   tradicion: { nombre: 'Tradición oral; registrada en varias fuentes independientes (ver docs/gritos.md)' },
-  equipo: { nombre: 'Aportada por el equipo del proyecto, de tradición familiar' },
 };
 
 /**
@@ -51,7 +49,7 @@ export const GRITOS = {
   33: [{ texto: "Atarántamela a palos, no me la dejes llegar.", fuente: "tradicion" }],
   34: [{ texto: "Uno, dos y tres, el soldado p'al cuartel.", fuente: "tradicion" }],
   35: [{ texto: "La guía de los marineros.", fuente: "tradicion" }],
-  36: [{ texto: "El caso que me haces poco, y el caso es averiguarlo.", fuente: "equipo" }, { texto: "El caso que te hago es poco.", fuente: "tradicion" }],
+  36: [{ texto: "El caso que te hago es poco.", fuente: "tradicion" }],
   37: [{ texto: "Este mundo es una bola, y nosotros un bolón.", fuente: "tradicion" }],
   39: [{ texto: "Al nopal lo van a ver nomás cuando tiene tunas.", fuente: "tradicion" }],
   40: [{ texto: "El que con la cola pica, le dan una paliza.", fuente: "tradicion" }],
