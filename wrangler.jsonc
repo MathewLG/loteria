@@ -1,14 +1,19 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "loteria",
+  // El Account ID no es secreto; el token sí, y vive en los secretos de GitHub.
+  "account_id": "39b2b8285a7f85897dcd3a5bcd709985",
   "main": "src/worker.ts",
   "compatibility_date": "2026-11-01",
   "assets": { "directory": "./public" },
   "durable_objects": {
     "bindings": [{ "name": "SALA", "class_name": "Sala" }]
   },
-  // Registro de cada ronda para verificarla después (R2 tiene 10 GB gratis).
-  "r2_buckets": [{ "binding": "RONDAS", "bucket_name": "loteria-rondas" }],
+  // Registro de rondas pasadas en R2: opcional. Activar R2 pide registrar una tarjeta,
+  // así que por ahora va apagado y la sala funciona sin él (la verificación al final
+  // de cada ronda sigue funcionando; solo la página de rondas pasadas queda sin datos).
+  // Para activarlo: crear el bucket `loteria-rondas` y descomentar la línea siguiente.
+  // "r2_buckets": [{ "binding": "RONDAS", "bucket_name": "loteria-rondas" }],
   // El plan gratuito solo admite Durable Objects con almacenamiento SQLite.
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Sala"] }],
   "vars": {
