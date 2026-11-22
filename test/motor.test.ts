@@ -90,7 +90,7 @@ test('un reclamo con la figura completa gana; uno incompleto no', async () => {
   const ronda = a.ultimo(T.ESTADO).ronda;
 
   await sala.motor.mensaje(b, codificarLoteria(ronda, 0));
-  assert.equal(b.ultimo(T.RESULTADO).motivo, MOTIVO.INCOMPLETA);
+  assert.equal(b.ultimo(T.RESULTADO).motivo, MOTIVO.DESCALIFICADO, 'gritar sin carta llena es falsa lotería');
 
   await sala.motor.mensaje(a, codificarLoteria(ronda, posible));
   const r = a.ultimo(T.RESULTADO);
@@ -101,15 +101,16 @@ test('un reclamo con la figura completa gana; uno incompleto no', async () => {
   assert.equal(a.ultimo(T.RESULTADO).motivo, MOTIVO.YA_GANASTE);
 });
 
-test('marcar casillas que no han salido no sirve para ganar', async () => {
+test('gritar con frijoles en cartas que no han salido es falsa lotería', async () => {
   const sala = crearSala();
   const a = await sala.entra(TOKEN_A);
   await sala.tic(); // empieza a cantar: una carta
   const ronda = a.ultimo(T.ESTADO).ronda;
   await sala.motor.mensaje(a, codificarLoteria(ronda, 0xffff));
-  assert.equal(a.ultimo(T.RESULTADO).motivo, MOTIVO.INCOMPLETA);
+  assert.equal(a.ultimo(T.RESULTADO).motivo, MOTIVO.DESCALIFICADO);
+  for (let i = 0; i < 15; i++) await sala.tic(); // ya salieron las 16
   await sala.motor.mensaje(a, codificarLoteria(ronda, 0xffff));
-  assert.equal(a.ultimo(T.RESULTADO).motivo, MOTIVO.MUY_SEGUIDO, 'un reclamo por carta');
+  assert.equal(a.ultimo(T.RESULTADO).motivo, MOTIVO.DESCALIFICADO, 'queda fuera el resto de la ronda');
 });
 
 test('una conexión que vuelve recupera su lugar de ganador', async () => {
@@ -135,9 +136,9 @@ test('pura llena: con 54 cartas nadie gana hasta que salen sus 16', async () => 
     if (!carta || carta.indice === cantadas.length) continue;
     cantadas.push(carta.carta);
     const m = mascaraCantadas(tabla, cantadas);
+    if (m !== 0xffff) { reclamosFallidos += 1; continue; } // nadie grita con la carta incompleta
     await sala.motor.mensaje(a, codificarLoteria(ronda, m));
     const r = a.ultimo(T.RESULTADO);
-    if (m !== 0xffff) { assert.equal(r.ok, false); reclamosFallidos += 1; continue; }
     assert.equal(r.ok, true);
     assert.ok(tabla.every((c) => cantadas.includes(c)));
     break;

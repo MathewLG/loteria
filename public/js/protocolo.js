@@ -14,7 +14,7 @@ export const T = {
 
 export const FASE = { ESPERA: 0, CANTANDO: 1, TERMINADA: 2 };
 
-export const MOTIVO = { OK: 0, INCOMPLETA: 1, YA_GANASTE: 2, FUERA_DE_RONDA: 3, MUY_SEGUIDO: 4, MALFORMADO: 5, ESPECTADOR: 6 };
+export const MOTIVO = { OK: 0, INCOMPLETA: 1, YA_GANASTE: 2, FUERA_DE_RONDA: 3, MUY_SEGUIDO: 4, MALFORMADO: 5, ESPECTADOR: 6, DESCALIFICADO: 7 };
 
 /** Posiciones de la tabla: 0 1 2 3 / 4 5 6 7 / 8 9 10 11 / 12 13 14 15.
  *  El juego es "pura llena": solo gana quien llena toda su tabla.
@@ -52,7 +52,8 @@ export function mascaraCantadas(tabla, cantadas) {
  *  11-14 jugadores conectados (u32)
  *  15-18 ganadores de la ronda (u32)
  *  19-20 tu lugar, 0 si no has ganado (u16)
- *  21    banderas: bit 0 = trae semilla, bit 1 = eres espectador, bit 2 = trae pase (espera y canto, nunca a espectadores)
+ *  21    banderas: bit 0 = trae semilla, bit 1 = eres espectador, bit 2 = trae pase (espera y canto, nunca a espectadores),
+ *        bit 3 = quedaste descalificado en esta ronda por gritar en falso
  *  22    índice de la tabla elegida (0..2)
  *  23    t: tablas que siguen. 3 en la espera (las ofrecidas, en orden de índice),
  *        1 al cantar o terminar (solo la elegida), 0 si eres espectador
@@ -62,7 +63,7 @@ export function mascaraCantadas(tabla, cantadas) {
  *  ...   n bytes: cartas cantadas en orden
  *  ...   32 bytes: semilla, solo si la bandera 0 está prendida (fase terminada)
  */
-export const BANDERA = { SEMILLA: 1, ESPECTADOR: 2, PASE: 4 };
+export const BANDERA = { SEMILLA: 1, ESPECTADOR: 2, PASE: 4, DESCALIFICADO: 8 };
 export const LARGO_PASE = 16;
 const CABECERA_ESTADO = 24;
 
@@ -83,7 +84,7 @@ export function codificarEstado(e) {
   v.setUint32(11, e.jugadores, true);
   v.setUint32(15, e.ganadores, true);
   v.setUint16(19, e.lugar, true);
-  v.setUint8(21, (conSemilla ? BANDERA.SEMILLA : 0) | (e.espectador ? BANDERA.ESPECTADOR : 0) | (conPase ? BANDERA.PASE : 0));
+  v.setUint8(21, (conSemilla ? BANDERA.SEMILLA : 0) | (e.espectador ? BANDERA.ESPECTADOR : 0) | (conPase ? BANDERA.PASE : 0) | (e.descalificado ? BANDERA.DESCALIFICADO : 0));
   v.setUint8(22, e.elegida ?? 0);
   v.setUint8(23, tablas.length);
   let p = CABECERA_ESTADO;
@@ -213,7 +214,7 @@ export function decodificar(datos) {
           tipo, ronda: v.getUint16(1, true), fase: v.getUint8(3), figura: v.getUint8(4),
           catalogo: v.getUint8(5), msSiguiente: v.getUint32(7, true), jugadores: v.getUint32(11, true),
           ganadores: v.getUint32(15, true), lugar: v.getUint16(19, true),
-          espectador: (banderas & BANDERA.ESPECTADOR) !== 0, elegida, tablas, tabla, huella, pase, cantadas, semilla,
+          espectador: (banderas & BANDERA.ESPECTADOR) !== 0, descalificado: (banderas & BANDERA.DESCALIFICADO) !== 0, elegida, tablas, tabla, huella, pase, cantadas, semilla,
         };
       }
       case T.ELECCION: {
