@@ -23,6 +23,15 @@
     <button class="boton-sec boton-historial" id="boton-historial" type="button" aria-haspopup="dialog" aria-controls="historial">
       Cartas cantadas: <span id="contador-cantadas">0</span>
     </button>
+    <button class="boton-sec boton-audio" id="boton-audio" type="button" aria-haspopup="dialog" aria-controls="menu-audio" aria-label="Sonido: efectos encendidos" title="Sonido">
+      <svg class="icono-bocina" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <path class="bocina-cuerpo" d="M4.5 12.2c0-.6.4-1 1-1h4.3l6.9-5.6c.7-.5 1.6 0 1.6.8v19.2c0 .8-.9 1.3-1.6.8l-6.9-5.6H5.5c-.6 0-1-.4-1-1z"/>
+        <path class="bocina-trazo" d="M7.2 13.4v5.1M9.4 13v6"/>
+        <path class="bocina-onda" d="M22 11.6c1.4 1.2 2.2 2.8 2.2 4.5s-.8 3.2-2.2 4.4"/>
+        <path class="bocina-onda bocina-onda-2" d="M25 8.4c2.3 2 3.6 4.7 3.6 7.6s-1.3 5.6-3.6 7.6"/>
+        <path class="bocina-tache" d="M21.6 12.2l6.6 7.8M28.2 12.2l-6.6 7.8"/>
+      </svg>
+    </button>
   </header>
 
   <section class="cantor" aria-label="Carta cantada">
@@ -73,6 +82,31 @@
     <p class="fin-siguiente" id="fin-siguiente"></p>
   </section>
 </main>
+
+<dialog class="historial menu-audio" id="menu-audio" aria-labelledby="menu-audio-titulo">
+  <div class="historial-cabeza">
+    <h2 id="menu-audio-titulo">Sonido</h2>
+    <button class="boton-sec" id="menu-audio-cerrar" type="button">Cerrar</button>
+  </div>
+  <div class="audio-opciones">
+    <button class="interruptor" id="audio-silencio" type="button" role="switch" aria-checked="false" aria-describedby="audio-silencio-ayuda">
+      <span class="interruptor-texto">Silenciar todo<span class="interruptor-ayuda" id="audio-silencio-ayuda">Apaga efectos y música sin perder tu elección.</span></span>
+      <span class="interruptor-riel" aria-hidden="true"><span class="interruptor-bolita"></span></span>
+    </button>
+    <button class="interruptor" id="audio-efectos" type="button" role="switch" aria-checked="true" aria-describedby="audio-efectos-ayuda">
+      <span class="interruptor-texto">Efectos<span class="interruptor-ayuda" id="audio-efectos-ayuda">Frijoles, carta nueva, ¡Lotería!</span></span>
+      <span class="interruptor-riel" aria-hidden="true"><span class="interruptor-bolita"></span></span>
+    </button>
+    <button class="interruptor" id="audio-musica" type="button" role="switch" aria-checked="false" aria-describedby="audio-musica-ayuda">
+      <span class="interruptor-texto">Música<span class="interruptor-ayuda" id="audio-musica-ayuda">Son de feria, bajito, de fondo.</span></span>
+      <span class="interruptor-riel" aria-hidden="true"><span class="interruptor-bolita"></span></span>
+    </button>
+    <label class="audio-volumen" for="audio-volumen">
+      <span>Volumen <output id="audio-volumen-valor" for="audio-volumen">80</output></span>
+      <input type="range" id="audio-volumen" min="0" max="100" step="5" value="80">
+    </label>
+  </div>
+</dialog>
 
 <dialog class="historial" id="historial" aria-labelledby="historial-titulo">
   <div class="historial-cabeza">
