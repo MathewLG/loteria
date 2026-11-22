@@ -29,6 +29,13 @@ export default {
       return sala.fetch(peticion);
     }
     if (url.pathname.startsWith('/api/rondas/') && peticion.method === 'GET') {
+      // Sin R2 configurado el registro de rondas pasadas está apagado: se dice tal cual.
+      if (!env.RONDAS) {
+        return new Response(JSON.stringify({ razon: 'sin-registro' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+        });
+      }
       const resto = decodeURIComponent(url.pathname.slice('/api/rondas/'.length));
       if (resto === 'ultima') return leerRonda(env, 'rondas/ultima.json');
       if (resto === 'recientes') {

@@ -31,6 +31,10 @@ async function cargarRecientes() {
     estadoRecientes.textContent = 'No pudimos cargar las rondas recientes. Abajo está la última ronda terminada.';
     return;
   }
+  if (r.status === 503) {
+    estadoRecientes.textContent = 'El registro de rondas pasadas todavía no está activado. Al final de cada ronda tu propio dispositivo comprueba la baraja en el juego.';
+    return;
+  }
   if (!r.ok) {
     estadoRecientes.textContent = 'No pudimos cargar las rondas recientes. Abajo está la última ronda terminada.';
     return;
@@ -83,6 +87,10 @@ async function verificar(clave) {
     r = await fetch(`/api/rondas/${clave || 'ultima'}`, { cache: 'no-store' });
   } catch {
     mostrar('<p>No pudimos conectarnos. Revisa tu internet e intenta de nuevo.</p>', 'Sin conexión.');
+    return;
+  }
+  if (r.status === 503) {
+    mostrar('<p>El registro de rondas pasadas todavía no está activado. Al final de cada ronda tu propio dispositivo comprueba la baraja en el juego.</p>', 'Registro de rondas apagado.');
     return;
   }
   if (r.status === 404) {
