@@ -1,18 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { VERSOS } from '../public/js/versos.js';
+import { FUENTE, VERSOS } from '../public/js/versos.js';
 import { NOMBRES } from '../public/js/cartas.js';
 import { ADJETIVOS, SUSTANTIVOS, armarApodo, generarApodo } from '../public/js/apodos.js';
 
-test('hay un verso por carta, corto, sin guion largo y sin repetir', () => {
+test('los gritos son solo los documentados, uno por carta o ninguno', () => {
   assert.equal(VERSOS.length, 54);
   assert.equal(VERSOS.length, NOMBRES.length);
-  for (const verso of VERSOS) {
+  const documentados = VERSOS.filter((v) => v !== null);
+  assert.equal(documentados.length, 6, 'solo los seis de García Cubas (1904)');
+  for (const verso of documentados) {
     assert.ok(verso.trim().length > 0);
     assert.ok(verso.length <= 80, `verso largo: ${verso}`);
     assert.ok(!verso.includes('—'), `guion largo: ${verso}`);
   }
-  assert.equal(new Set(VERSOS).size, VERSOS.length);
+  assert.equal(VERSOS[0], 'El que le cantó a San Pedro.');
+  assert.equal(VERSOS[45], 'El abrigo de los pobres.');
+  assert.match(FUENTE.obra, /García Cubas/);
 });
 
 test('generarApodo es determinista con un aleatorio fijo y tiene el formato correcto', () => {
