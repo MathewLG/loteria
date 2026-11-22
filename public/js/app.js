@@ -3,6 +3,7 @@ import {
 } from './protocolo.js';
 import { aHex, igualesBytes } from './baraja.js';
 import { NOMBRES, SVG_FRIJOL, svgCarta, svgReverso } from './cartas.js';
+import { RACHA_VACIA, registrarToque } from './frijoles.js';
 import { VERSOS } from './versos.js';
 import { generarApodo } from './apodos.js';
 import { claveDeRonda, verificarRonda } from './verificacion.js';
@@ -54,6 +55,7 @@ const s = {
   catalogo: 54,
   tablas: [],
   elegida: 0,
+  base: 0,
   eligiendo: false,
   tabla: [],
   espectador: false,
@@ -100,7 +102,7 @@ ui.botonApodo.addEventListener('click', () => {
 });
 
 // Los frijoles sobreviven a recargar la página, pero solo dentro de la misma ronda y tabla.
-const claveMarcas = () => `${aHex(s.huella)}:${s.elegida}`;
+const claveMarcas = () => `${aHex(s.huella)}:${(s.base + s.elegida) % 1000}`;
 function guardarMarcas() {
   guardado.escribir('loteria:marcas', JSON.stringify({ clave: claveMarcas(), marcadas: s.marcadas }));
 }
@@ -112,19 +114,31 @@ function cargarMarcas() {
   return 0;
 }
 
-// El pase de la ronda lo firma la sala. Con él, al volver (también tras recargar la página)
-// el jugador conserva su tabla en lugar de entrar como espectador.
-function guardarPase(ronda, elegida, pase) {
-  if (pase) guardado.escribir('loteria:pase', JSON.stringify({ ronda, elegida, pase: aHex(pase) }));
+// La carta (tabla de 16) se conserva entre rondas: el jugador guarda su número de carta
+// y la sala se la ofrece primero, ya elegida, en cada ronda nueva.
+function cartaPreferida() {
+  const n = Number.parseInt(guardado.leer('loteria:carta') ?? '0', 10);
+  return Number.isInteger(n) && n >= 0 && n < 1000 ? n : 0;
+}
+function guardarCartaPreferida(n) {
+  if (Number.isInteger(n) && n >= 0 && n < 1000) guardado.escribir('loteria:carta', String(n));
+}
+
+// El pase de la ronda lo firma la sala para la carta en juego. Con él, al volver (también tras
+// recargar la página) el jugador conserva su carta en lugar de entrar como espectador.
+function guardarPase(ronda, carta, pase) {
+  if (pase) guardado.escribir('loteria:pase', JSON.stringify({ ronda, carta, pase: aHex(pase) }));
 }
 function parametrosDeVuelta() {
+  const carta = cartaPreferida();
+  let vuelta = `&c=${carta}`;
   try {
     const g = JSON.parse(guardado.leer('loteria:pase') ?? 'null');
-    if (g && Number.isInteger(g.ronda) && Number.isInteger(g.elegida) && /^[0-9a-f]{32}$/.test(g.pase)) {
-      return `&r=${g.ronda}&e=${g.elegida}&p=${g.pase}`;
+    if (g && Number.isInteger(g.ronda) && g.carta === carta && /^[0-9a-f]{32}$/.test(g.pase)) {
+      vuelta += `&r=${g.ronda}&p=${g.pase}`;
     }
   } catch { /* sin pase guardado */ }
-  return '';
+  return vuelta;
 }
 
 // ---- Conexión ----
@@ -217,7 +231,8 @@ function manejar(m) {
     case T.ESTADO: alEstado(m); break;
     case T.ELECCION:
       s.eligiendo = false;
-      guardarPase(s.ronda, m.indice, m.pase);
+      guardarPase(s.ronda, (s.base + m.indice) % 1000, m.pase);
+      if (m.ok) guardarCartaPreferida((s.base + m.indice) % 1000);
       // La sala responde con la tabla que quedó elegida: si rechazó el cambio, es la anterior.
       if (s.tablas[m.indice] && m.indice !== s.elegida) {
         s.elegida = m.indice;
@@ -226,7 +241,7 @@ function manejar(m) {
         construirTabla();
       }
       pintarEleccion();
-      if (m.ok) anunciar(`Elegiste la carta ${m.indice + 1}.`);
+      if (m.ok) anunciar(m.indice === 0 ? 'Juegas con tu carta de siempre.' : `Cambiaste a ${textoOpcion(m.indice).toLowerCase()}. Te la guardamos para las siguientes rondas.`);
       else decir('Ya no se puede cambiar de carta.');
       break;
     case T.CARTA: {
@@ -284,15 +299,16 @@ function manejar(m) {
 
 function alEstado(m) {
   const otraRonda = !s.huella || !igualesBytes(s.huella, m.huella);
-  const otraTabla = otraRonda || m.elegida !== s.elegida || m.tablas.length !== s.tablas.length;
+  const otraTabla = otraRonda || m.elegida !== s.elegida || m.base !== s.base || m.tablas.length !== s.tablas.length;
   Object.assign(s, {
     ronda: m.ronda, fase: m.fase, figura: m.figura, catalogo: m.catalogo,
-    tablas: m.tablas, elegida: m.elegida, tabla: m.tabla, espectador: m.espectador, descalificado: !!m.descalificado,
+    tablas: m.tablas, elegida: m.elegida, base: m.base, tabla: m.tabla, espectador: m.espectador, descalificado: !!m.descalificado,
     cantadas: m.cantadas, huella: m.huella, semilla: m.semilla, lugar: m.lugar,
     jugadores: m.jugadores, ganadores: m.ganadores, limite: Date.now() + m.msSiguiente,
     conectado: true, esperandoResultado: false, eligiendo: false,
   });
-  guardarPase(m.ronda, m.elegida, m.pase);
+  guardarPase(m.ronda, m.numeroCarta, m.pase);
+  if (!m.espectador && m.tablas.length) guardarCartaPreferida(m.numeroCarta);
   intentos = 0;
   proximoIntento = 0;
   mostrarAviso(null);
@@ -397,6 +413,36 @@ function sacudir(elemento) {
   elemento.classList.add('sacude');
 }
 
+/** La primera opción es la carta que el jugador conserva; las otras dos son para cambiar. */
+function textoOpcion(i) {
+  return ['Tu carta', 'Otra', 'Otra más'][i] ?? `Carta ${i + 1}`;
+}
+
+// Easter egg: siete toques seguidos en la misma casilla tiran todos los frijoles.
+let racha = RACHA_VACIA;
+
+function tirarFrijoles() {
+  const frijoles = [...ui.tabla.querySelectorAll('.frijol')];
+  const quieto = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  frijoles.forEach((f, k) => {
+    if (quieto) { f.remove(); return; }
+    // Cada frijol sale disparado en su propia dirección, como si se volteara la carta.
+    const angulo = (k * 137.5 + Math.random() * 40) * (Math.PI / 180);
+    const distancia = 160 + Math.random() * 140;
+    f.style.setProperty('--dx', `${Math.round(Math.cos(angulo) * distancia)}px`);
+    f.style.setProperty('--dy', `${Math.round(Math.sin(angulo) * distancia - 120)}px`);
+    f.style.setProperty('--giro', `${Math.round(Math.random() * 720 - 360)}deg`);
+    f.classList.add('vuela');
+    f.addEventListener('animationend', () => f.remove(), { once: true });
+  });
+  s.marcadas = 0;
+  [...ui.tabla.children].forEach((b, i) => etiquetarCasilla(b, i));
+  guardarMarcas();
+  pintarHistorial();
+  decir('¡Se tiraron todos los frijoles!');
+  anunciar('Se tiraron todos los frijoles.');
+}
+
 function tocar(i) {
   const boton = ui.tabla.children[i];
   const nombre = NOMBRES[s.tabla[i] - 1];
@@ -408,6 +454,12 @@ function tocar(i) {
   }
   if (s.fase === FASE.TERMINADA) {
     decir('La ronda ya terminó.');
+    return;
+  }
+  const toque = registrarToque(racha, i, performance.now());
+  racha = toque.racha;
+  if (toque.tirar) {
+    tirarFrijoles();
     return;
   }
   // Como en la mesa: el frijol se pone donde uno quiera; equivocarse se paga al gritar.
@@ -437,8 +489,8 @@ function pintarEleccion() {
       b.className = 'opcion-tabla';
       b.setAttribute('role', 'radio');
       // La tabla elegida se ve abajo a tamaño de juego; aquí basta el número y, para el lector, sus primeras cartas.
-      b.setAttribute('aria-label', `Carta ${i + 1}: empieza con ${tabla.slice(0, 4).map((c) => NOMBRES[c - 1]).join(', ')}`);
-      b.textContent = `Carta ${i + 1}`;
+      b.setAttribute('aria-label', `${textoOpcion(i)}: empieza con ${tabla.slice(0, 4).map((c) => NOMBRES[c - 1]).join(', ')}`);
+      b.textContent = textoOpcion(i);
       b.addEventListener('click', () => elegirTabla(i));
       b.addEventListener('keydown', (e) => moverEleccion(e, i));
       return b;

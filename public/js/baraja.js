@@ -126,18 +126,32 @@ const codificador = new TextEncoder();
 
 /** Cuántas tablas se ofrecen a cada jugador en la espera. */
 export const TABLAS_OFRECIDAS = 3;
+/** Cuántas cartas distintas puede tener un jugador: el número de carta va de 0 a 999. */
+export const NUMEROS_DE_CARTA = 1000;
 
-/**
- * La tabla de un jugador sale de su token, la ronda y cuál de las tablas ofrecidas eligió
- * (0, 1 o 2): no hay que guardarla en ningún lado.
- */
-export function tablaDe(token, ronda, catalogo, indice = 0) {
-  return barajar(sha256(codificador.encode(`tabla:${token}:${ronda}:${indice}`)), catalogo).slice(0, 16);
+/** Normaliza un número de carta al rango válido; cualquier otra cosa es la carta 0. */
+export function numeroDeCarta(n) {
+  const x = Number(n);
+  return Number.isInteger(x) && x >= 0 ? x % NUMEROS_DE_CARTA : 0;
 }
 
-/** Las tablas que se ofrecen a un jugador en la espera, en orden de índice. */
-export function tablasOfrecidas(token, ronda, catalogo) {
-  return Array.from({ length: TABLAS_OFRECIDAS }, (_, i) => tablaDe(token, ronda, catalogo, i));
+/**
+ * La carta (tabla de 16) de un jugador sale de su token y de un número de carta que el jugador
+ * conserva entre rondas: no depende de la ronda y no hay que guardarla en la sala.
+ */
+export function tablaDe(token, numero, catalogo) {
+  return barajar(sha256(codificador.encode(`carta:${token}:${numeroDeCarta(numero)}`)), catalogo).slice(0, 16);
+}
+
+/** Números de las cartas que se ofrecen en la espera: la preferida primero y dos alternativas. */
+export function numerosOfrecidos(base) {
+  const b = numeroDeCarta(base);
+  return Array.from({ length: TABLAS_OFRECIDAS }, (_, i) => (b + i) % NUMEROS_DE_CARTA);
+}
+
+/** Las cartas que se ofrecen a un jugador en la espera, en orden de índice. */
+export function tablasOfrecidas(token, base, catalogo) {
+  return numerosOfrecidos(base).map((n) => tablaDe(token, n, catalogo));
 }
 
 export function aHex(bytes) {

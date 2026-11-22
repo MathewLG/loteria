@@ -6,7 +6,7 @@ import {
   FASE, LARGO_PASE, MAX_MS_CARTA, MOTIVO, T, codificarCarta, codificarEleccion, codificarEstado, codificarFin,
   codificarResultado, codificarStats, cumpleFigura, decodificar, mascaraCantadas,
 } from '../public/js/protocolo.js';
-import { TABLAS_OFRECIDAS, aHex, barajar, deHex, igualesBytes, sha256, tablaDe, tablasOfrecidas } from '../public/js/baraja.js';
+import { NUMEROS_DE_CARTA, TABLAS_OFRECIDAS, aHex, barajar, deHex, igualesBytes, numeroDeCarta, sha256, tablaDe, tablasOfrecidas } from '../public/js/baraja.js';
 
 export interface Adjunto {
   token: string;
@@ -19,6 +19,8 @@ export interface Adjunto {
   descalificado?: boolean;
   /** Índice de la tabla elegida entre las ofrecidas (0..2). */
   elegida: number;
+  /** Número de carta (0..999) de la primera ofrecida. La carta en juego es (base + elegida) mod 1000. */
+  base?: number;
   /** Llegó con la ronda ya cantándose: mira pero no puede reclamar. */
   espectador: boolean;
 }
@@ -112,21 +114,32 @@ const DIA_MS = 86_400_000;
 export const TOKEN_VALIDO = /^[0-9a-f]{32}$/;
 export const PASE_VALIDO = /^[0-9a-f]{32}$/;
 
-/** Lee los parámetros de reconexión de la URL del WebSocket: r (ronda), e (tabla elegida), p (pase). */
-export function reanudarDeUrl(url: URL): Reanudar | undefined {
+/**
+ * Lee de la URL del WebSocket lo que el cliente guardó: c (número de carta que conserva),
+ * y para volver a su ronda r (ronda) y p (pase).
+ */
+export function reanudarDeUrl(url: URL): Reanudar {
   const ronda = Number.parseInt(url.searchParams.get('r') ?? '', 10);
-  if (!Number.isInteger(ronda) || ronda <= 0) return undefined;
-  const elegida = Number.parseInt(url.searchParams.get('e') ?? '0', 10);
+  const carta = Number.parseInt(url.searchParams.get('c') ?? '0', 10);
   const pase = url.searchParams.get('p') ?? undefined;
-  return { ronda, elegida: Number.isInteger(elegida) ? elegida : 0, pase };
+  return {
+    ronda: Number.isInteger(ronda) && ronda > 0 ? ronda : 0,
+    carta: Number.isInteger(carta) && carta >= 0 && carta < NUMEROS_DE_CARTA ? carta : 0,
+    pase,
+  };
 }
 
-/** Lo que un cliente manda al reconectar para seguir en su ronda. */
+/** Lo que un cliente manda al conectar: la carta que conserva y, si vuelve a su ronda, el pase. */
 export interface Reanudar {
+  /** Ronda a la que vuelve, 0 si no vuelve a ninguna. */
   ronda: number;
-  elegida: number;
+  /** Número de carta (0..999) que el jugador conserva entre rondas. */
+  carta: number;
   pase?: string;
 }
+
+/** Número de carta en juego de un jugador. */
+const cartaEnJuego = (a: Adjunto) => numeroDeCarta((a.base ?? 0) + a.elegida);
 
 /** Ganadores de la ronda en memoria; se guardan en lotes en cada paso del reloj. */
 interface Ganadores {
@@ -146,8 +159,8 @@ const codificador = new TextEncoder();
  * Pase de un jugador para una ronda. Depende de la semilla, que es secreta hasta el final,
  * así que solo la sala puede emitirlo. Sustituye a guardar la tabla elegida de cada jugador.
  */
-export function calcularPase(semilla: string, token: string, elegida: number): Uint8Array {
-  return sha256(codificador.encode(`pase:${semilla}:${token}:${elegida}`)).slice(0, LARGO_PASE);
+export function calcularPase(semilla: string, token: string, carta: number): Uint8Array {
+  return sha256(codificador.encode(`pase:${semilla}:${token}:${carta}`)).slice(0, LARGO_PASE);
 }
 
 export class Motor {
@@ -276,9 +289,9 @@ export class Motor {
 
   /**
    * Un jugador entra. Si la sala dormía, arranca una ronda nueva.
-   * `reanudar` es lo que el cliente guardó de su ronda: en la espera basta la tabla elegida;
-   * durante el canto hace falta un pase válido para no quedar como espectador.
-   * No se escribe nada por jugador: la tabla elegida vive en el adjunto y en el pase.
+   * `reanudar` es lo que el cliente guardó: el número de carta que conserva entre rondas y,
+   * si vuelve a su ronda durante el canto, un pase válido para no quedar como espectador.
+   * No se escribe nada por jugador: la carta vive en el cliente, en el adjunto y en el pase.
    */
   async conectar(c: Conexion, token: string, reanudar?: Reanudar): Promise<void> {
     let e = await this.env.leer<EstadoSala>(CLAVE_ESTADO);
@@ -288,19 +301,16 @@ export class Motor {
     const g = await this.ganadoresDe(e.ronda);
     const lugar = g.lugares.get(token) ?? 0;
     const descalificado = g.descalificados.has(token);
-    const indice = reanudar && reanudar.ronda === e.ronda && Number.isInteger(reanudar.elegida)
-      && reanudar.elegida >= 0 && reanudar.elegida < TABLAS_OFRECIDAS ? reanudar.elegida : -1;
-    let elegida = 0;
+    // La carta que el jugador conserva viene en la URL; en la espera se le ofrece primero.
+    const base = numeroDeCarta(reanudar?.carta ?? 0);
     let espectador = false;
-    if (e.fase === FASE.ESPERA) {
-      if (indice >= 0) elegida = indice;
-    } else {
-      const paseOk = indice >= 0 && !!reanudar?.pase && PASE_VALIDO.test(reanudar.pase)
-        && igualesBytes(deHex(reanudar.pase), calcularPase(e.semilla, token, indice));
-      if (paseOk) elegida = indice;
+    if (e.fase !== FASE.ESPERA) {
+      // Durante el canto solo juega quien trae un pase válido para esta ronda y esa carta.
+      const paseOk = !!reanudar && reanudar.ronda === e.ronda && !!reanudar.pase && PASE_VALIDO.test(reanudar.pase)
+        && igualesBytes(deHex(reanudar.pase), calcularPase(e.semilla, token, base));
       espectador = e.fase === FASE.CANTANDO && !paseOk && lugar === 0;
     }
-    const a: Adjunto = { token, ronda: e.ronda, lugar, ultimoReclamo: -1, elegida, espectador, descalificado };
+    const a: Adjunto = { token, ronda: e.ronda, lugar, ultimoReclamo: -1, elegida: 0, base, espectador, descalificado };
     c.guardarAdjunto(a);
     c.enviar(this.estadoPara(e, a));
   }
@@ -334,8 +344,8 @@ export class Motor {
       return;
     }
     if (a.ronda !== e.ronda) {
-      // El adjunto quedó de una ronda anterior: en esta ronda juega con su tabla 0.
-      Object.assign(a, { ronda: e.ronda, lugar: 0, ultimoReclamo: -1, elegida: 0, espectador: false, descalificado: false });
+      // El adjunto quedó de una ronda anterior: en esta ronda juega con la misma carta.
+      Object.assign(a, { ronda: e.ronda, lugar: 0, ultimoReclamo: -1, base: cartaEnJuego(a), elegida: 0, espectador: false, descalificado: false });
     }
     if (a.espectador) {
       c.enviar(codificarResultado(false, MOTIVO.ESPECTADOR, 0));
@@ -364,7 +374,7 @@ export class Motor {
     // Como en la mesa: gana quien grita con su carta llena, es decir, con frijol en las 16
     // casillas y las 16 cartas ya cantadas. Gritar sin eso es una falsa lotería y deja fuera
     // al jugador el resto de la ronda (también si se reconecta).
-    const tabla = tablaDe(a.token, e.ronda, this.cfg.catalogo, a.elegida);
+    const tabla = tablaDe(a.token, cartaEnJuego(a), this.cfg.catalogo);
     const salieron = this.baraja(e.semilla).slice(0, e.cantadas);
     const llena = (marcadas & 0xffff) === 0xffff && cumpleFigura(mascaraCantadas(tabla, salieron), e.figura);
     if (!llena) {
@@ -485,7 +495,8 @@ export class Motor {
       for (const c of this.env.conexiones()) {
         const anterior = c.adjunto();
         if (!anterior) continue;
-        const a: Adjunto = { token: anterior.token, ronda, lugar: 0, ultimoReclamo: -1, elegida: 0, espectador: false };
+        // La ronda nueva empieza con la misma carta que jugó en la anterior, ya elegida.
+        const a: Adjunto = { token: anterior.token, ronda, lugar: 0, ultimoReclamo: -1, base: cartaEnJuego(anterior), elegida: 0, espectador: false };
         c.guardarAdjunto(a);
         c.enviar(this.estadoPara(e, a));
       }
@@ -498,8 +509,8 @@ export class Motor {
     const { catalogo } = this.cfg;
     let tablas: number[][];
     if (a.espectador) tablas = [];
-    else if (e.fase === FASE.ESPERA) tablas = tablasOfrecidas(a.token, e.ronda, catalogo);
-    else tablas = [tablaDe(a.token, e.ronda, catalogo, a.elegida)];
+    else if (e.fase === FASE.ESPERA) tablas = tablasOfrecidas(a.token, a.base ?? 0, catalogo);
+    else tablas = [tablaDe(a.token, cartaEnJuego(a), catalogo)];
     return codificarEstado({
       ronda: e.ronda,
       fase: e.fase,
@@ -512,7 +523,8 @@ export class Motor {
       espectador: a.espectador,
       descalificado: !!a.descalificado,
       pase: e.fase !== FASE.TERMINADA && !a.espectador ? this.paseDe(e, a) : null,
-      elegida: a.elegida,
+      elegida: e.fase === FASE.ESPERA ? a.elegida : 0,
+      base: e.fase === FASE.ESPERA ? (a.base ?? 0) : cartaEnJuego(a),
       huella: sha256(semilla),
       tablas,
       cantadas: this.baraja(e.semilla).slice(0, e.cantadas),
@@ -521,7 +533,7 @@ export class Motor {
   }
 
   private paseDe(e: EstadoSala, a: Adjunto): Uint8Array {
-    return calcularPase(e.semilla, a.token, a.elegida);
+    return calcularPase(e.semilla, a.token, cartaEnJuego(a));
   }
 
   private difundir(conexiones: Conexion[], datos: Uint8Array): void {
